@@ -89,17 +89,18 @@ void monomials(const std::vector<int>& vars, int n, int D, std::vector<Exp>& out
 }
 
 long support_size(int nblock, int nrest, int DA, int DB) {
-  // C(DA + nblock, nblock) * C(DB + nrest, nrest), saturating
+  // C(DA + nblock, nblock) * C(DB + nrest, nrest), saturating at 2^40
+  constexpr long cap = 1L << 40;
   auto binom = [](long a, long b) {
-    long r = 1;
+    __int128 r = 1;
     for (long i = 1; i <= b; ++i) {
       r = r * (a - b + i) / i;
-      if (r > (1L << 40)) return 1L << 40;
+      if (r > cap) return cap;
     }
-    return r;
+    return static_cast<long>(r);
   };
-  long s = binom(DA + nblock, nblock) * binom(DB + nrest, nrest);
-  return std::min(s, 1L << 40);
+  const __int128 s = static_cast<__int128>(binom(DA + nblock, nblock)) * binom(DB + nrest, nrest);
+  return s > cap ? cap : static_cast<long>(s);
 }
 
 ulong residue(const fmpq* c, ulong p, bool& bad) {
@@ -115,6 +116,14 @@ ulong residue(const fmpq* c, ulong p, bool& bad) {
 }
 
 }  // namespace
+
+bool verify(const Ideal& I, const MembershipCertificate& C) {
+  const auto& G = I.gens();
+  if (G.size() != C.gens.size()) return false;
+  for (size_t j = 0; j < G.size(); ++j)
+    if (G[j].ring() != C.gens[j].ring() || !G[j].equal(C.gens[j])) return false;
+  return verify(C);
+}
 
 bool verify(const MembershipCertificate& C) {
   if (C.cofactors.size() != C.gens.size()) return false;
@@ -288,12 +297,27 @@ std::optional<MembershipCertificate> certify_membership(const std::vector<Poly>&
   std::vector<char> in_block(n, 0);
   for (int v : block) in_block[v] = 1;
   const int nb = static_cast<int>(block.size()), nr = n - nb;
-  long dA = 0;
-  for (auto& g : gens) dA = std::max(dA, poly_block_degree(g, in_block, true));
+  // Block bounds: from d_A - 2 up to max(d_A, deg_A h) + extra_block, where d_A is
+  // the largest block degree of a generator. Other bounds: from d_B(h) - 1 up to
+  // max(d_B(h), deg h - e) + extra_rest, where e is the smallest total degree of a
+  // generator. For elimination (deg_A h = 0, deg h = d_B(h)) this is the window
+  // d_A - 2..d_A + extra_block, d_B(h) - 1..d_B(h) + extra_rest. A bound in variables
+  // that do not exist changes nothing, so it is pinned to 0.
+  long dA = 0, emin = -1;
+  for (auto& g : gens) {
+    dA = std::max(dA, poly_block_degree(g, in_block, true));
+    if (!g.is_zero()) emin = emin < 0 ? g.total_degree() : std::min(emin, g.total_degree());
+  }
+  if (emin < 0) return std::nullopt;  // all generators zero; h != 0 is not a member
+  const long hA = poly_block_degree(h, in_block, true);
   const long dB = poly_block_degree(h, in_block, false);
+  long loA = std::max(0L, dA - 2), hiA = std::max(dA, hA) + opt.extra_block;
+  long loB = std::max(0L, dB - 1), hiB = std::max(dB, h.total_degree() - emin) + opt.extra_rest;
+  if (nb == 0) loA = hiA = 0;
+  if (nr == 0) loB = hiB = 0;
   std::vector<std::tuple<long, int, int>> tries;  // (unknowns, DA, DB)
-  for (long DA = std::max(0L, dA - 2); DA <= dA + opt.extra_block; ++DA)
-    for (long DB = std::max(0L, dB - 1); DB <= dB + opt.extra_rest; ++DB) {
+  for (long DA = loA; DA <= hiA; ++DA)
+    for (long DB = loB; DB <= hiB; ++DB) {
       const long u = support_size(nb, nr, static_cast<int>(DA), static_cast<int>(DB)) *
                      static_cast<long>(gens.size());
       if (u <= opt.max_unknowns) tries.emplace_back(u, static_cast<int>(DA), static_cast<int>(DB));

@@ -60,3 +60,30 @@ def test_members_and_non_members():
     assert helmer.certify_membership(helmer.Ideal(R, ["x^2"]), "x", ["x"]) is None
     z = helmer.certify_membership(I, "0", ["x"])
     assert z is not None and all(str(q) == "0" for q in z["cofactors"])
+
+
+def test_bounds_follow_the_target():
+    # x^12 - 1 lies in I; its block degree (12) is far above the generators' (2).
+    R = helmer.Ring("x,y,z")
+    I = helmer.Ideal(R, ["x^2-y", "y^3-z", "z^2-1"])
+    for block in ([], ["x"], ["y", "z"], ["x", "y", "z"]):
+        c = helmer.certify_membership(I, "x^12-1", block)
+        assert c is not None and helmer.verify_membership(I, c["target"], c["cofactors"])
+
+
+def test_verify_against_ideal():
+    R = helmer.Ring("x,y")
+    I = helmer.Ideal(R, ["x^2-y", "y^3-1"])
+    c = helmer.certify_membership(I, "x^6-1", ["x"])
+    assert helmer.verify_membership(I, c["target"], c["cofactors"])
+    # same cofactors against a different ideal with the same number of generators
+    J = helmer.Ideal(R, ["x^2-y", "y^3-2"])
+    assert not helmer.verify_membership(J, c["target"], c["cofactors"])
+    with pytest.raises(Exception):
+        helmer.verify_membership(c["generators"], c["target"], c["cofactors"])
+
+
+def test_zero_elimination_ideal_has_nothing_certified():
+    R = helmer.Ring("x,e")
+    J, certs = helmer.eliminate_certified(helmer.Ideal(R, ["x*e-x"]), ["x"])
+    assert J.gens == [] and certs == []

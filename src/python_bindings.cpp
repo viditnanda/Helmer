@@ -212,20 +212,30 @@ PYBIND11_MODULE(_helmer, m) {
                                               var_indices(I.ring(), block),
                                               certify_options(max_unknowns, max_primes)));
   }, py::arg("ideal"), py::arg("target"), py::arg("block") = std::vector<std::string>(),
-     py::arg("max_unknowns") = 12000, py::arg("max_primes") = 64,
+     py::arg("max_unknowns") = 4000, py::arg("max_primes") = 64,
      "A verified certificate target = sum_j c_j g_j over the generators g_j of `ideal`, as a "
      "dict (target, generators, cofactors, bounds), or None if none was found within the "
      "limits. Cofactor terms have degree <= D_A in the `block` variables and <= D_B in the "
      "others, for a small range of (D_A, D_B). The identity is checked exactly over QQ "
      "before returning; None proves nothing.");
   m.def("verify_membership", [](py::object gens, py::object target, py::object cofactors,
-                                RingPtr R) {
+                                std::optional<RingPtr> ring) {
+    const bool is_ideal = py::isinstance<Ideal>(gens);
+    if (!is_ideal && !ring) throw std::invalid_argument("ring is required unless generators is an Ideal");
+    const RingPtr R = is_ideal ? gens.cast<const Ideal&>().ring() : *ring;
     MembershipCertificate C{poly_from(R, target), {}, {}};
-    for (auto g : gens) C.gens.push_back(poly_from(R, g));
     for (auto c : cofactors) C.cofactors.push_back(poly_from(R, c));
+    if (is_ideal) {
+      const Ideal& I = gens.cast<const Ideal&>();
+      C.gens = I.gens();
+      return verify(I, C);
+    }
+    for (auto g : gens) C.gens.push_back(poly_from(R, g));
     return verify(C);
-  }, py::arg("generators"), py::arg("target"), py::arg("cofactors"), py::arg("ring"),
-     "Exact check of target == sum_j cofactors[j] * generators[j] over QQ.");
+  }, py::arg("generators"), py::arg("target"), py::arg("cofactors"), py::arg("ring") = py::none(),
+     "Exact check of target == sum_j cofactors[j] * g_j over QQ. `generators` is an Ideal "
+     "(then g_j are its generators, the check proves target in it, and `ring` may be "
+     "omitted) or a list of polynomials in `ring`.");
   m.def("eliminate_certified", [](const Ideal& I, const std::vector<std::string>& vars,
                                   long max_unknowns, int max_primes) {
     auto E = eliminate_certified(I, var_indices(I.ring(), vars),
@@ -233,11 +243,12 @@ PYBIND11_MODULE(_helmer, m) {
     py::list certs;
     for (auto& C : E.certificates) certs.append(certificate_obj(C));
     return py::make_tuple(E.ideal, certs);
-  }, py::arg("ideal"), py::arg("variables"), py::arg("max_unknowns") = 12000,
+  }, py::arg("ideal"), py::arg("variables"), py::arg("max_unknowns") = 4000,
      py::arg("max_primes") = 64,
      "eliminate(ideal, variables) together with, for each generator, a verified membership "
      "certificate in `ideal` (None where none was found). A certified generator vanishes "
-     "on the zero set of `ideal`.");
+     "on the zero set of `ideal`. Only a nonzero certified generator bounds anything: if "
+     "the elimination ideal comes back zero, both lists are empty.");
   m.def("set_seed", &set_seed);
   m.def("stats", []() {
     py::dict d;

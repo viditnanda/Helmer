@@ -83,12 +83,17 @@ small range of bounds ordered by system size), solved modulo 62-bit primes with
 Chinese remaindering and rational reconstruction. It is *returned* only after the
 identity has been checked exactly in FLINT's `fmpq_mpoly`, so it proves membership
 whatever the reliability of the modular steps or of the Gröbner basis; `None` proves
-nothing. `verify_membership(gens, h, cofactors, ring)` repeats the exact check.
+nothing. `verify_membership(I, h, cofactors)` repeats the exact check against the
+generators of the ideal I (a list of generators and a ring also works).
+`max_unknowns` (default 4,000) caps the linear systems tried: the solve is dense, so
+memory grows like rows × unknowns and time like unknowns³.
 
 For an elimination generator P this proves P ∈ I, hence P vanishes on V(I) over ℂ,
 which is the direction needed to bound critical values: with
 I = (∂f/∂x_1, …, ∂f/∂x_n, f − ε), every critical value of f is a root of the
-certified P(ε), including when the critical points are not isolated.
+certified P(ε), including when the critical points are not isolated. Only a nonzero
+certified generator gives a bound; if the elimination ideal comes back zero, both
+returned lists are empty.
 
 ```python
 R = helmer.Ring("x, y, epsilon")

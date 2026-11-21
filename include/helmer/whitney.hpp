@@ -25,8 +25,20 @@ struct WhitneyOptions {
   bool projective = false;
   int level = -1;                         // -1: all levels (M2 default n - codim)
   std::string saturation = "random";      // "random" | "exact" (conormal saturation)
+  // "conormal": Helmer–Mohr conormal algorithm (deterministic up to the modular lift).
+  // "polar": polar-variety algorithm (M2 whitneyStratifyPol): usually faster, uses
+  //          random projections, and returns a valid but generally non-minimal
+  //          stratification with probability ~1 (see docs).
+  std::string method = "conormal";
+  long polar_bound = 1000;  // random coefficients in [-B, B] for the polar projections
   std::function<void(const std::string&)> log;  // progress messages, may be empty
 };
+
+// Polar varieties of a prime I of codimension c in k^n: for l = 1..dim(I)+1, the
+// closure over the smooth locus of { rank [Jac I ; A_l] < c + l } with A_l a random
+// l x n matrix (i.e. the critical locus of a random linear projection to k^{l-1}...),
+// saturated by the singular-locus ideal Jsing (M2: polarVars).
+std::vector<Ideal> polar_varieties(const Ideal& I, const Ideal& Jsing, long bound = 1000);
 
 // QQ[x_0..x_{n-1}, v_0..v_{n-1}]: the ring of the conormal variety in k^n x P^{n-1}.
 RingPtr conormal_ring(const RingPtr& R);

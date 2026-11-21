@@ -72,6 +72,56 @@ is confirmed by an independent random-looking 31-bit prime. The prime certificat
 `minimal_primes` and the conormal saturation are exact. A fully certified mode
 (verifying the lifted basis over ℚ) is on the roadmap.
 
+## Certified membership and elimination
+
+`certify_membership(I, h, block)` returns cofactors with h = Σ c_j g_j over the
+generators g_j of I, and `eliminate_certified(I, vars)` returns `eliminate(I, vars)`
+together with such a certificate in I for each generator. A certificate is *found*
+heuristically: the cofactors' coefficients are the unknowns of a linear system over a
+bounded support (degree ≤ D_A in the `block` variables, ≤ D_B in the others, for a
+small range of bounds ordered by system size), solved modulo 62-bit primes with
+Chinese remaindering and rational reconstruction. It is *returned* only after the
+identity has been checked exactly in FLINT's `fmpq_mpoly`, so it proves membership
+whatever the reliability of the modular steps or of the Gröbner basis; `None` proves
+nothing. `verify_membership(I, h, cofactors)` repeats the exact check against the
+generators of the ideal I (a list of generators and a ring also works).
+`max_unknowns` (default 4,000) caps the linear systems tried: the solve is dense, so
+memory grows like rows × unknowns and time like unknowns³.
+
+For an elimination generator P this proves P ∈ I, hence P vanishes on V(I) over ℂ,
+which is the direction needed to bound critical values: with
+I = (∂f/∂x_1, …, ∂f/∂x_n, f − ε), every critical value of f is a root of the
+certified P(ε), including when the critical points are not isolated. Only a nonzero
+certified generator gives a bound; if the elimination ideal comes back zero, both
+returned lists are empty.
+
+```python
+R = helmer.Ring("x, y, epsilon")
+f = "(x^2+y^2-1)*(x^2+y^2-4)"            # critical points form a circle
+I = helmer.Ideal(R, ["2*x*(2*x^2+2*y^2-5)", "2*y*(2*x^2+2*y^2-5)", f + "-epsilon"])
+J, (cert,) = helmer.eliminate_certified(I, ["x", "y"])
+# J = (epsilon^2 - 7/4*epsilon - 9): critical values 4 (origin) and -9/4 (a circle)
+```
+
+Measured on critical-value ideals (single equation f, or F = Σ f_i² for systems):
+the certificates found have block degree deg f − 1 to deg f + 1 and degree
+deg P − 1 in ε, so the linear systems stay small.
+
+| input | deg P | unknowns | seconds |
+|---|---|---|---|
+| torus in ℝ³ (deg 4) | 3 | 240 | 0.04 |
+| two spheres meeting in a circle (deg 4) | 3 | 240 | 0.04 |
+| genus-2 surface (deg 8) | 2 | 960 | 1.0 |
+| ℝP² sextic in ℝ⁴ | 2 | 1,260 | 6 |
+| three great circles (F, deg 6) | 4 | 1,920 | 15 |
+| Clifford torus (F, deg 4, 4 variables) | 3 | 1,890 | 15 |
+| 5 separated circles (deg 10) | 10 | 1,650 | 20 |
+| 6 separated circles (deg 12) | 12 | 2,808 | 103 |
+| 8 concentric circles (deg 16, critical circles) | 8 | 3,264 | 126 |
+
+The time is spent in dense modular row reduction, one per prime and per bound tried;
+a square-subsystem solve, threads across primes, or p-adic lifting would cut it.
+
 ## Conormal or polar?
 
 In Macaulay2 the polar route is far faster than the conormal route (X₁ below: 2.7 s vs

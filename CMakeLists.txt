@@ -15,7 +15,7 @@ find_library(NEOGB_LIB neogb REQUIRED)
 find_package(OpenMP)
 
 add_library(helmer_core STATIC
-  src/poly.cpp src/gb.cpp src/ideal.cpp src/primes.cpp src/whitney.cpp)
+  src/poly.cpp src/gb.cpp src/ideal.cpp src/primes.cpp src/whitney.cpp src/certify.cpp)
 target_include_directories(helmer_core PUBLIC include)
 target_link_libraries(helmer_core PUBLIC ${NEOGB_LIB} ${FLINT_LIB} ${GMP_LIB} m)
 if(OpenMP_C_FOUND)

@@ -2,6 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "helmer/certify.hpp"
 #include "helmer/whitney.hpp"
 
 namespace py = pybind11;
@@ -37,6 +38,38 @@ Ideal ideal_from(const RingPtr& R, py::object gens) {
     else G.emplace_back(R, py::str(g).cast<std::string>());
   }
   return Ideal(R, G);
+}
+
+std::vector<int> var_indices(const RingPtr& R, const std::vector<std::string>& vars) {
+  std::vector<int> idx;
+  for (auto& v : vars) {
+    int i = R->index_of(v);
+    if (i < 0) throw std::invalid_argument("unknown variable " + v);
+    idx.push_back(i);
+  }
+  return idx;
+}
+
+Poly poly_from(const RingPtr& R, py::handle f) {
+  if (py::isinstance<Poly>(f)) return f.cast<Poly>();
+  return Poly(R, py::str(f).cast<std::string>());
+}
+
+py::object certificate_obj(const std::optional<MembershipCertificate>& C) {
+  if (!C) return py::none();
+  py::dict d;
+  d["target"] = C->target;
+  d["generators"] = C->gens;
+  d["cofactors"] = C->cofactors;
+  d["bounds"] = py::make_tuple(C->bound_block, C->bound_rest);
+  return d;
+}
+
+CertifyOptions certify_options(long max_unknowns, int max_primes) {
+  CertifyOptions o;
+  o.max_unknowns = max_unknowns;
+  o.max_primes = max_primes;
+  return o;
 }
 
 py::dict strata_dict(const Stratification& S) {
@@ -173,6 +206,38 @@ PYBIND11_MODULE(_helmer, m) {
     for (auto f : F) Fp.emplace_back(X.ring(), py::str(f).cast<std::string>());
     return non_proper_set(Fp, X, Y);
   });
+  m.def("certify_membership", [](const Ideal& I, py::object target, const std::vector<std::string>& block,
+                                 long max_unknowns, int max_primes) {
+    return certificate_obj(certify_membership(I.gens(), poly_from(I.ring(), target),
+                                              var_indices(I.ring(), block),
+                                              certify_options(max_unknowns, max_primes)));
+  }, py::arg("ideal"), py::arg("target"), py::arg("block") = std::vector<std::string>(),
+     py::arg("max_unknowns") = 12000, py::arg("max_primes") = 64,
+     "A verified certificate target = sum_j c_j g_j over the generators g_j of `ideal`, as a "
+     "dict (target, generators, cofactors, bounds), or None if none was found within the "
+     "limits. Cofactor terms have degree <= D_A in the `block` variables and <= D_B in the "
+     "others, for a small range of (D_A, D_B). The identity is checked exactly over QQ "
+     "before returning; None proves nothing.");
+  m.def("verify_membership", [](py::object gens, py::object target, py::object cofactors,
+                                RingPtr R) {
+    MembershipCertificate C{poly_from(R, target), {}, {}};
+    for (auto g : gens) C.gens.push_back(poly_from(R, g));
+    for (auto c : cofactors) C.cofactors.push_back(poly_from(R, c));
+    return verify(C);
+  }, py::arg("generators"), py::arg("target"), py::arg("cofactors"), py::arg("ring"),
+     "Exact check of target == sum_j cofactors[j] * generators[j] over QQ.");
+  m.def("eliminate_certified", [](const Ideal& I, const std::vector<std::string>& vars,
+                                  long max_unknowns, int max_primes) {
+    auto E = eliminate_certified(I, var_indices(I.ring(), vars),
+                                 certify_options(max_unknowns, max_primes));
+    py::list certs;
+    for (auto& C : E.certificates) certs.append(certificate_obj(C));
+    return py::make_tuple(E.ideal, certs);
+  }, py::arg("ideal"), py::arg("variables"), py::arg("max_unknowns") = 12000,
+     py::arg("max_primes") = 64,
+     "eliminate(ideal, variables) together with, for each generator, a verified membership "
+     "certificate in `ideal` (None where none was found). A certified generator vanishes "
+     "on the zero set of `ideal`.");
   m.def("set_seed", &set_seed);
   m.def("stats", []() {
     py::dict d;

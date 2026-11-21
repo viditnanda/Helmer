@@ -1,0 +1,21 @@
+# name: (variables, generators, projective)
+EXAMPLES = {
+ "umbrella":   ("x,y,z", ["y^2*z-x^2"], False),
+ "cusp":       ("x,y,z", ["y^2+x^3-x^2*z^2"], False),
+ "fig2":       ("x,y,z", ["(y-1)^2-(x-z)*(x-1)^2"], False),
+ "xyz":        ("x,y,z", ["x*y*z"], False),
+ "twisted_ws": ("x,y,z,w", ["x^2-y^2*z", "w"], False),
+ "umbrella_P": ("x,y,z,w", ["y^2*z-x^2*w"], True),
+ "quartic_P":  ("a_0,a_1,a_2,a_3,a_4", ["a_0^2*a_4-a_1*a_2^2+a_3^3-a_3*a_0^2-a_4^2*a_3"], True),
+ "HM_ex1.1":   ("x_1,x_2,x_3,x_4", ["x_1^7-2*x_1^5*x_4+x_1^3*x_4^2+x_1^2*x_2^2-x_1*x_2^2*x_3+x_2^3"], False),
+ "HM_X1":      ("x_1,x_2,x_3,x_4", ["x_1^2*x_3-x_2^2", "x_2^4-x_1*x_2^2-x_3*x_4^2", "x_1^2*x_2^2-x_1^3-x_4^2"], False),
+ "HM_X2":      ("x_1,x_2,x_3,x_4", ["x_1^6+x_2^6+x_1^4*x_3*x_4+x_3^3"], False),
+ "cayley_P":   ("x,y,z,w", ["x*y*z+x*y*w+x*z*w+y*z*w"], True),
+ "kummer_like":("x,y,z", ["x^4+y^4+z^4-x^2-y^2-z^2-x^2*y^2-x^2*z^2-y^2*z^2+1"], False),
+ "swallowtail_disc": ("a,b,c", ["256*c^3-128*a^2*c^2+144*a*b^2*c+16*a^4*c-27*b^4-4*a^3*b^2"], False),
+ "two_cones":  ("x,y,z", ["(x^2+y^2-z^2)*((x-1)^2+y^2-z^2)"], False),
+ "space_curve":("x,y,z", ["y^2-x^3", "z^2-x^5"], False),
+ "plane_line": ("x,y,z", ["x*z", "y*z"], False),
+ "D4_P":       ("x,y,z,w", ["x^2*w-y^3+y*z^2"], True),
+ "cross_cap_2":("x,y,z,w", ["x^2-y^2*z", "w^2-y*z"], False),
+}

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["scikit-build-core>=0.8", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "helmer"
+version = "0.1.0.dev0"
+description = "Whitney stratifications of real and complex algebraic varieties and maps (C++ core, Python bindings)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Vidit Nanda" }]
+keywords = ["Whitney stratification", "algebraic geometry", "conormal variety", "Groebner basis", "singularities"]
+classifiers = [
+  "Programming Language :: C++",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.scikit-build]
+wheel.packages = ["python/helmer"]
+cmake.define = { HELMER_TESTS = "OFF" }

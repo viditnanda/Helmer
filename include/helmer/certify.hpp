@@ -1,9 +1,11 @@
 // Certified ideal membership: h = sum_j c_j g_j with explicit cofactors, checked by
 // exact polynomial arithmetic over QQ.
 //
-// The cofactors are *found* by linear algebra modulo word-size primes with Chinese
-// remaindering and rational reconstruction, which is heuristic; the certificate is
-// *accepted* only after the identity has been verified exactly in fmpq_mpoly. A
+// The cofactors are *found* heuristically: one elimination modulo a ~26-bit prime picks
+// a nonsingular square subsystem of the linear system for the cofactor coefficients,
+// which is then solved by p-adic (Dixon) lifting and rational reconstruction; the
+// certificate is *accepted* only after the identity has been verified exactly in
+// fmpq_mpoly. A
 // returned certificate is therefore a proof that h lies in the ideal (g_1, ..., g_m),
 // independent of the modular steps and of the Gröbner basis computations.
 #pragma once
@@ -30,7 +32,8 @@ bool verify(const Ideal& I, const MembershipCertificate& C);
 struct CertifyOptions {
   long max_unknowns = 4000;  // largest linear system tried (columns); the solve is dense,
                              // so memory ~ 8 * rows * columns bytes and time ~ columns^3
-  int max_primes = 64;       // primes per support before giving up on it
+  int max_primes = 64;       // p-adic lifting budget per support, in 62-bit units
+                             // (precision 62 * max_primes bits) before giving up
   int extra_block = 4;       // block bounds tried: d_A - 2, ..., max(d_A, deg_A h) + extra_block
   int extra_rest = 2;        // other bounds: d_B(h) - 1, ..., max(d_B(h), deg h - e) + extra_rest
 };

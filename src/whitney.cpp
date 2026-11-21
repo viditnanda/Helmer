@@ -59,6 +59,26 @@ Ideal conormal(const Ideal& I, const RingPtr& S, const std::string& saturation) 
   return saturate(Ideal(S, gens), Ideal(S, sat), saturation);
 }
 
+std::vector<Ideal> polar_varieties(const Ideal& I, const Ideal& Jsing, long bound) {
+  const RingPtr& R = I.ring();
+  const int n = R->nvars();
+  const int c = I.codim();
+  const int d = n - c;
+  auto Jac = jacobian(I.gens());
+  std::vector<Ideal> out;
+  for (int l = 1; l <= d + 1; ++l) {
+    auto M = Jac;
+    for (int r = 0; r < l; ++r) {
+      std::vector<Poly> row;
+      for (int i = 0; i < n; ++i) row.push_back(Poly::constant(R, random_coeff(bound)));
+      M.push_back(std::move(row));
+    }
+    Ideal K = I + Ideal(R, minors(c + l, M));
+    out.push_back(Jsing.is_unit() ? K : saturate(K, Jsing, "random"));
+  }
+  return out;
+}
+
 Ideal whitney_points(const Ideal& Z, const Ideal& ConX, const RingPtr& R) {
   const RingPtr& S = ConX.ring();
   const int n = R->nvars();
@@ -162,6 +182,17 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
       const int mu = st.dim_of(Ja);  // dim of Sing(Ia); negative if smooth
       for (auto& K : minimal_primes(Ja))
         if (st.dim_of(K) < k) st.add(K);
+      if (opts.method == "polar") {
+        // Teissier: (B) fails along Y ⊆ Sing only where polar multiplicities jump;
+        // such points lie in Sing ∩ (closures of polar varieties).
+        if (mu > 0) {
+          log("  polar varieties of a " + std::to_string(k) + "-dimensional piece");
+          for (auto& P : polar_varieties(Ia, Ja, opts.polar_bound))
+            for (auto& K : minimal_primes(Ja + P))
+              if (st.dim_of(K) < k) st.add(K);
+        }
+        continue;
+      }
       if (mu > dimI - level) {
         log("  conormal of a " + std::to_string(k) + "-dimensional piece");
         Ideal C = conormal(Ia, S, opts.saturation == "random" ? "minor" : opts.saturation);

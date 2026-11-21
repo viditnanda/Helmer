@@ -126,8 +126,11 @@ PYBIND11_MODULE(_helmer, m) {
   }, py::arg("ideal"), py::arg("saturation") = "random",
      "Conormal variety in k^n x P^(n-1) (variables v_0..v_{n-1}).");
   m.def("whitney_stratify", [](const Ideal& I, bool projective, int level,
-                               const std::string& sat, py::object log) {
+                               const std::string& sat, py::object log,
+                               const std::string& method, long polar_bound) {
     WhitneyOptions o;
+    o.method = method;
+    o.polar_bound = polar_bound;
     o.projective = projective;
     o.level = level;
     o.saturation = sat;
@@ -137,7 +140,14 @@ PYBIND11_MODULE(_helmer, m) {
     }
     return strata_dict(whitney_stratify(I, o));
   }, py::arg("ideal"), py::arg("projective") = false, py::arg("level") = -1,
-     py::arg("saturation") = "random", py::arg("log") = py::none());
+     py::arg("saturation") = "random", py::arg("log") = py::none(),
+     py::arg("method") = "conormal", py::arg("polar_bound") = 1000,
+     "Whitney stratification. method='conormal' (Helmer–Mohr; default) or 'polar' "
+     "(polar varieties; usually faster, randomised, generally non-minimal).");
+  m.def("polar_varieties", [](const Ideal& I, long bound) {
+    return polar_varieties(I, jacobian_ideal(I), bound);
+  }, py::arg("ideal"), py::arg("bound") = 1000,
+     "Polar varieties of a prime ideal (M2: polarVars).");
   m.def("map_stratify", [](py::object F, const Ideal& X, const Ideal& Y, bool proper,
                            const std::string& strata, py::object log) {
     std::vector<Poly> Fp;

@@ -31,12 +31,13 @@ valid stratification (some strata may be empty or drop dimension), see [HLN].
 | `whitneyStratify(I, AssocPrimes=>false)` | `whitney_stratify(I, projective=False)` | Conormal algorithm of [HN] in the associated-prime-free form of [HM]. |
 | `mapStratify(F, X, Y, AssocPrimes=>false, isProper=>…)` | `map_stratify(F, X, Y, proper=True)` | Stratifies source and target so Thom's isotopy lemma applies. |
 | `nonProperSet(F, X, Y)` | `non_proper_set(F, X, Y)` | Jelonek set, via the closure of the graph in ℙⁿ × kᵐ. |
+| `whitneyStratifyPol(I)` | `whitney_stratify(I, method="polar")` | Polar-variety route: randomised, non-minimal output. |
+| `polarVars(I)` | `polar_varieties(I)` | |
 | `conormal(I)` | `conormal(I)` | In kⁿ × ℙⁿ⁻¹, variables `v_0..v_{n-1}`. |
 | `decompose(I)` | `minimal_primes(I)` | New implementation; see below. |
 | `eliminate`, `saturate`, `intersect`, `gb`, `dim`, `codim`, `independentSets` | same names / `Ideal` methods | |
 
-Not yet ported: the polar-variety route (`whitneyStratifyPol`, `mapStratifyPol`,
-`polarVars`), minimisation (`minCoarsenWS`), and the Euler-obstruction /
+Not yet ported: `mapStratifyPol`, minimisation (`minCoarsenWS`), and the Euler-obstruction /
 characteristic-cycle functions (`eulerObsMatrix`, `multCC`, `polarSequence`). These all
 rest on Samuel multiplicities (Macaulay2's `SegreClasses`), which is the next piece of
 algebra to build. `AssocPrimes=>true` (the original [HN] route via associated primes)
@@ -71,13 +72,41 @@ is confirmed by an independent random-looking 31-bit prime. The prime certificat
 `minimal_primes` and the conormal saturation are exact. A fully certified mode
 (verifying the lifted basis over ℚ) is on the roadmap.
 
+## Conormal or polar?
+
+In Macaulay2 the polar route is far faster than the conormal route (X₁ below: 2.7 s vs
+210 s), because M2 saturates the conormal ideal by the entire ideal of minors. Helmer
+saturates by one sparse minor instead (exact for prime input, see above), which removes
+that bottleneck. As a result the conormal route is the default: on every benchmark so far it
+is at least as fast as the polar route, and it is deterministic.
+
+| Example | M2 conormal | M2 polar | Helmer conormal | Helmer polar |
+|---|---|---|---|---|
+| [HM] X₁ | 210 s | 2.7 s | 1.2 s | 0.7 s |
+| [HM] X₂ | 7.2 s | 208 s | 2.7 s | 13.8 s |
+| [HM] Example 1.1 | 14.1 s | 22.0 s | 0.8 s | 8.3 s |
+
+The polar route draws random linear projections, so it returns valid but generally
+non-minimal stratifications with random extra strata (exactly as in M2). Neither
+route is minimal in general: on Example 1.1 the conormal route returns three
+non-minimal curves, and on X₂ both conormal and the associated-primes route return a
+non-minimal point. The tests check every polar output against the *minimal*
+stratification computed by M2's `minCoarsenWS`. `polar_bound` (default 1000) sets the
+size of the random coefficients: smaller is faster (X₂: 5.0 s at bound 5) but raises
+the small probability of an unlucky projection.
+
+Known hard cases for both systems: the Briançon–Speder family
+`x⁵ + y⁷z + z¹⁵ + t·xy⁶` and a quartic hypersurface in ℂ⁵. A single Gröbner basis
+(the conormal saturation) dominates; this is where the remaining speed has to come from.
+
 ## Validation and speed
 
 `tests/test_helmer.py` checks Helmer against Macaulay2 1.22 + WhitneyStratifications
 2.23 (with `AssocPrimes=>false`) on the package's documentation examples, the
 benchmark varieties of [HM], and assorted singular surfaces, curves and projective
 hypersurfaces; plus both root-classification examples for `mapStratify` and a battery
-of `decompose` comparisons. All agree: same strata, same dimensions (32 tests, ~4 s).
+of `decompose` comparisons. All agree: same strata, same dimensions. Polar outputs
+are checked to refine the minimal stratification (46 tests, ~20 s).
 
 Wall-clock times on the same 2-core machine (M2 `cpuTime`; Helmer via Python):
 

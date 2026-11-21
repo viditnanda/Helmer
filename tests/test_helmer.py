@@ -82,3 +82,25 @@ def test_map_feynman_doc_example():
     exp_Y = {0: [["P", "M1"]], 1: [["P"], ["4*M1-P"], ["M1"]], 2: [[]]}
     assert same(B, {d: [helmer.Ideal(S, g) for g in L] for d, L in exp_Y.items()})
     assert {d: len(L) for d, L in A.items()} == {0: 1, 1: 8, 2: 9, 3: 6, 4: 4}
+
+
+def skeleton(S, d):
+    return [P for k, L in S.items() if k <= d for P in L]
+
+
+def contains_skeleta(big, small):
+    """Every skeleton of `small` lies inside the matching skeleton of `big`."""
+    dims = set(big) | set(small)
+    return all(all(any(P.contains(Q) for Q in skeleton(big, d)) for P in skeleton(small, d)) for d in dims)
+
+
+@pytest.mark.parametrize("name", sorted(n for n in FIX if not FIX[n]["projective"]))
+def test_polar_refines_minimal(name):
+    # The polar route is randomised and non-minimal; it must refine the minimal
+    # Whitney stratification (M2 minCoarsenWS where recorded, else M2's output).
+    ex = FIX[name]
+    R = helmer.Ring(ex["vars"])
+    helmer.set_seed(7)
+    P = helmer.whitney_stratify(helmer.Ideal(R, ex["gens"]), method="polar", polar_bound=100)
+    ref = as_strata(R, ex.get("m2_minimal_strata", ex["m2_HM_strata"]))
+    assert contains_skeleta(P, ref)

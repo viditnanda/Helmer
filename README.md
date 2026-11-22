@@ -79,14 +79,16 @@ generators g_j of I, and `eliminate_certified(I, vars)` returns `eliminate(I, va
 together with such a certificate in I for each generator. A certificate is *found*
 heuristically: the cofactors' coefficients are the unknowns of a linear system over a
 bounded support (degree ≤ D_A in the `block` variables, ≤ D_B in the others, for a
-small range of bounds ordered by system size), solved modulo 62-bit primes with
-Chinese remaindering and rational reconstruction. It is *returned* only after the
+small range of bounds ordered by system size). One elimination modulo a ~26-bit prime
+picks a nonsingular square subsystem (pivot columns and independent rows), which is
+solved by p-adic lifting from a single LU factorisation, with rational reconstruction
+attempted as the precision grows. It is *returned* only after the
 identity has been checked exactly in FLINT's `fmpq_mpoly`, so it proves membership
 whatever the reliability of the modular steps or of the Gröbner basis; `None` proves
 nothing. `verify_membership(I, h, cofactors)` repeats the exact check against the
 generators of the ideal I (a list of generators and a ring also works).
-`max_unknowns` (default 4,000) caps the linear systems tried: the solve is dense, so
-memory grows like rows × unknowns and time like unknowns³.
+`max_unknowns` (default 4,000) caps the linear systems tried: the first elimination is
+dense, so memory grows like rows × unknowns and time like unknowns³.
 
 For an elimination generator P this proves P ∈ I, hence P vanishes on V(I) over ℂ,
 which is the direction needed to bound critical values: with
@@ -107,20 +109,23 @@ Measured on critical-value ideals (single equation f, or F = Σ f_i² for system
 the certificates found have block degree deg f − 1 to deg f + 1 and degree
 deg P − 1 in ε, so the linear systems stay small.
 
-| input | deg P | unknowns | seconds |
-|---|---|---|---|
-| torus in ℝ³ (deg 4) | 3 | 240 | 0.04 |
-| two spheres meeting in a circle (deg 4) | 3 | 240 | 0.04 |
-| genus-2 surface (deg 8) | 2 | 960 | 1.0 |
-| ℝP² sextic in ℝ⁴ | 2 | 1,260 | 6 |
-| three great circles (F, deg 6) | 4 | 1,920 | 15 |
-| Clifford torus (F, deg 4, 4 variables) | 3 | 1,890 | 15 |
-| 5 separated circles (deg 10) | 10 | 1,650 | 20 |
-| 6 separated circles (deg 12) | 12 | 2,808 | 103 |
-| 8 concentric circles (deg 16, critical circles) | 8 | 3,264 | 126 |
+Timings of `eliminate_certified` (beyond `eliminate`), from `bench/certify_bench.py`;
+"before" is the CRT version (a full dense elimination for every prime).
 
-The time is spent in dense modular row reduction, one per prime and per bound tried;
-a square-subsystem solve, threads across primes, or p-adic lifting would cut it.
+| input | deg P | unknowns | before (s) | after (s) |
+|---|---|---|---|---|
+| torus in ℝ³ (deg 4) | 3 | 240 | 0.07 | 0.02 |
+| two spheres meeting in a circle (deg 4) | 3 | 240 | 0.08 | 0.02 |
+| Clifford torus (F, deg 4, 4 variables) | 3 | 1,890 | 17.2 | 3.6 |
+| 5 concentric circles (deg 10, critical circles) | 5 | 990 | 1.5 | 0.28 |
+| 5 separated circles (deg 10) | 10 | 1,980 | 22.7 | 3.5 |
+| 6 separated circles (deg 12) | 12 | 2,808 | 122.8 | 16.8 |
+| 8 concentric circles (deg 16, critical circles) | 8 | 3,264 | 144.0 | 15.1 |
+
+Almost all of the remaining time is the one dense elimination per bound tried
+(including the bounds that turn out too small); the lifting itself takes 1–2 s on the
+largest cases. A sparse first elimination, or skipping bounds that never succeed, is
+the next step.
 
 ## Conormal or polar?
 

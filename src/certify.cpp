@@ -183,101 +183,156 @@ std::optional<MembershipCertificate> certify_membership_bounded(
   for (auto& e : H.exps) hrow.push_back(row.emplace(e, static_cast<long>(row.size())).first->second);
   const long nrows = static_cast<long>(row.size());
 
-  // Modular solves; keep primes with the best (rank, pivot pattern).
-  long best_rank = -1;
-  std::vector<long> best_piv;
-  std::vector<Zv> crt;  // solution at pivot columns, CRT-combined
-  Zv modulus;
-  fmpz_one(&modulus.v);
-  std::vector<Qv> last;  // previous successful reconstruction
-  bool have_last = false;
-  int inconsistent = 0, consistent = 0;
+  // Integer form: scaling the columns of generator j by d_j (lcm of the denominators
+  // of g_j) and h by d_h gives an integer system A' y = b' with x = D y / d_h.
+  std::vector<Zv> dg(m);
+  for (long j = 0; j < m; ++j) {
+    fmpz_one(&dg[j].v);
+    for (auto& c : G[j].coeffs) fmpz_lcm(&dg[j].v, &dg[j].v, fmpq_denref(&c.v));
+  }
+  Zv dh;
+  fmpz_one(&dh.v);
+  for (auto& c : H.coeffs) fmpz_lcm(&dh.v, &dh.v, fmpq_denref(&c.v));
+  std::vector<Zv> ent(entries.size());  // integer entry of A'
+  for (size_t k = 0; k < entries.size(); ++k) {
+    const Entry& E = entries[k];
+    fmpz_divexact(&ent[k].v, &dg[E.j].v, fmpq_denref(&G[E.j].coeffs[E.t].v));
+    fmpz_mul(&ent[k].v, &ent[k].v, fmpq_numref(&G[E.j].coeffs[E.t].v));
+  }
+  std::vector<Zv> hb(H.coeffs.size());  // integer right-hand side b'
+  for (size_t t = 0; t < H.coeffs.size(); ++t) {
+    fmpz_divexact(&hb[t].v, &dh.v, fmpq_denref(&H.coeffs[t].v));
+    fmpz_mul(&hb[t].v, &hb[t].v, fmpq_numref(&H.coeffs[t].v));
+  }
+
+  // Lifting budget: p-adic precision of 62 * max_primes bits (as many bits as
+  // max_primes 62-bit primes would give).
+  const long max_bits = 62L * std::max(1, max_primes);
   flint_rand_t st;
   flint_randinit(st);
-  ulong p = n_nextprime((UWORD(1) << 62) + n_randint(st, UWORD(1) << 40), 1);
+  ulong p = n_nextprime((UWORD(1) << 25) + n_randint(st, UWORD(1) << 24), 1);
   flint_randclear(st);
 
-  for (int round = 0; round < max_primes; ++round, p = n_nextprime(p, 1)) {
-    bool bad = false;
-    nmod_mat_t M;
-    nmod_mat_init(M, nrows, ncols + 1, p);
-    for (const Entry& E : entries) {
-      ulong c = residue(&G[E.j].coeffs[E.t].v, p, bad);
-      nmod_mat_entry(M, E.r, E.c) = nmod_add(nmod_mat_entry(M, E.r, E.c), c, M->mod);
-    }
-    for (size_t t = 0; t < hrow.size(); ++t)
-      nmod_mat_entry(M, hrow[t], ncols) = residue(&H.coeffs[t].v, p, bad);
-    if (bad) {
-      nmod_mat_clear(M);
-      continue;
-    }
-    const long rank = nmod_mat_rref(M);
-    std::vector<long> piv;
-    bool incons = false;
-    for (long i = 0; i < rank; ++i) {
-      long c = 0;
-      while (c <= ncols && nmod_mat_entry(M, i, c) == 0) ++c;
-      if (c == ncols) incons = true;
-      piv.push_back(c);
-    }
-    if (incons) {
-      nmod_mat_clear(M);
-      // Over QQ a consistent system stays consistent modulo every prime not dividing
-      // a denominator of a solution; two misses with no hit: treat as no solution.
-      if (++inconsistent >= 2 && consistent == 0) return std::nullopt;
-      continue;
-    }
-    ++consistent;
-    std::vector<ulong> sol(rank);
-    for (long i = 0; i < rank; ++i) {
-      ulong pv = nmod_mat_entry(M, i, piv[i]);
-      sol[i] = nmod_mul(nmod_mat_entry(M, i, ncols), n_invmod(pv, p), M->mod);
-    }
-    nmod_mat_clear(M);
+  // 1. One elimination of the full system modulo a ~26-bit prime gives the rank, the
+  //    pivot columns (the column rank profile, i.e. the RREF pivots) and r independent
+  //    rows, or shows the system inconsistent. Over QQ a consistent system stays
+  //    consistent modulo every prime not dividing a denominator of the canonical
+  //    solution, so an inconsistency is taken as "no solution with these bounds".
+  // 2. The r x r subsystem on those rows and columns is nonsingular over QQ; its
+  //    solution (free variables zero) is found by Dixon's p-adic lifting from one LU
+  //    factorisation modulo p, stopping as soon as rational reconstruction gives
+  //    cofactors that pass the exact check.
+  // A pivot profile from an unlucky prime can only make that check fail; the whole
+  // procedure is then repeated with another prime (three attempts in all).
+  for (int attempt = 0; attempt < 3; ++attempt, p = n_nextprime(p, 1)) {
+    nmod_t mod;
+    nmod_init(&mod, p);
+    auto red = [&](const fmpz* z) { return fmpz_fdiv_ui(z, p); };
 
-    if (rank > best_rank || (rank == best_rank && piv < best_piv)) {
-      best_rank = rank;
-      best_piv = piv;
-      crt.assign(rank, Zv());
-      for (long i = 0; i < rank; ++i) fmpz_set_ui(&crt[i].v, sol[i]);
-      fmpz_set_ui(&modulus.v, p);
-      have_last = false;
-    } else if (rank == best_rank && piv == best_piv) {
-      Zv pz;
-      fmpz_set_ui(&pz.v, p);
-      for (long i = 0; i < rank; ++i) {
-        Zv r1;
-        fmpz_set(&r1.v, &crt[i].v);
-        fmpz_CRT_ui(&crt[i].v, &r1.v, &modulus.v, sol[i], p, 0);
+    long r = 0;
+    std::vector<long> piv, sel_rows;
+    {
+      nmod_mat_t M;
+      nmod_mat_init(M, nrows, ncols + 1, p);
+      for (size_t k = 0; k < entries.size(); ++k) {
+        const Entry& E = entries[k];
+        nmod_mat_entry(M, E.r, E.c) = nmod_add(nmod_mat_entry(M, E.r, E.c), red(&ent[k].v), mod);
       }
-      fmpz_mul(&modulus.v, &modulus.v, &pz.v);
-    } else {
-      continue;  // unlucky prime
+      for (size_t t = 0; t < hrow.size(); ++t) nmod_mat_entry(M, hrow[t], ncols) = red(&hb[t].v);
+      std::vector<slong> P(nrows);
+      r = nmod_mat_lu(P.data(), M, 0);
+      bool incons = false;
+      for (long i = 0; i < r; ++i) {
+        long c = i;
+        while (c <= ncols && nmod_mat_entry(M, i, c) == 0) ++c;
+        if (c == ncols) incons = true;
+        piv.push_back(c);
+      }
+      nmod_mat_clear(M);
+      if (incons || r == 0) return std::nullopt;
+      sel_rows.assign(P.begin(), P.begin() + r);
     }
 
-    // Rational reconstruction; check exactly once it is stable.
-    std::vector<Qv> q(best_rank);
-    bool ok = true;
-    for (long i = 0; i < best_rank && ok; ++i)
-      ok = fmpq_reconstruct_fmpz(&q[i].v, &crt[i].v, &modulus.v);
-    if (!ok) continue;
-    bool stable = have_last;
-    for (long i = 0; i < best_rank && stable; ++i) stable = fmpq_equal(&q[i].v, &last[i].v);
-    last = q;
-    have_last = true;
-    if (!stable) continue;
-
-    std::vector<std::vector<Exp>> ce(m);
-    std::vector<std::vector<fmpq*>> cc(m);
-    for (long i = 0; i < best_rank; ++i) {
-      const long col = best_piv[i];
-      if (fmpq_is_zero(&q[i].v)) continue;
-      ce[col / S].push_back(supp[col % S]);
-      cc[col / S].push_back(&q[i].v);
+    // Square integer system: sparse entries (i, k, value) and right-hand side.
+    std::vector<long> row_pos(nrows, -1), col_pos(ncols, -1);
+    for (long i = 0; i < r; ++i) row_pos[sel_rows[i]] = i, col_pos[piv[i]] = i;
+    struct SqEntry {
+      long i, k;
+      const fmpz* v;
+    };
+    std::vector<SqEntry> sq;
+    for (size_t k = 0; k < entries.size(); ++k) {
+      const long i = row_pos[entries[k].r], c = col_pos[entries[k].c];
+      if (i >= 0 && c >= 0) sq.push_back({i, c, &ent[k].v});
     }
-    MembershipCertificate C{h, gens, {}, DA, DB};
-    for (long j = 0; j < m; ++j) C.cofactors.push_back(Poly::from_terms(R, ce[j], cc[j]));
-    if (verify(C)) return C;
+    std::vector<Zv> res(r);  // residual, starts at b'
+    for (size_t t = 0; t < hrow.size(); ++t)
+      if (row_pos[hrow[t]] >= 0) fmpz_set(&res[row_pos[hrow[t]]].v, &hb[t].v);
+
+    nmod_mat_t LU, Bv, Yv, Zv_;
+    nmod_mat_init(LU, r, r, p);
+    for (auto& e : sq) nmod_mat_entry(LU, e.i, e.k) = nmod_add(nmod_mat_entry(LU, e.i, e.k), red(e.v), mod);
+    std::vector<slong> Pq(r);
+    if (nmod_mat_lu(Pq.data(), LU, 1) < r) {  // singular mod p: cannot happen for this p
+      nmod_mat_clear(LU);
+      continue;
+    }
+    nmod_mat_init(Bv, r, 1, p);
+    nmod_mat_init(Yv, r, 1, p);
+    nmod_mat_init(Zv_, r, 1, p);
+
+    std::vector<Zv> y(r);  // p-adic accumulator, in [0, p^k)
+    Zv pk;
+    fmpz_one(&pk.v);
+    std::vector<Qv> q(r);
+    long next_try = 2;
+    std::optional<MembershipCertificate> found;
+    for (long k = 1; fmpz_bits(&pk.v) <= max_bits; ++k) {
+      // z = A'^{-1} res mod p, from P A' = L U.
+      for (long i = 0; i < r; ++i) nmod_mat_entry(Bv, i, 0) = red(&res[Pq[i]].v);
+      nmod_mat_solve_tril(Yv, LU, Bv, 1);
+      nmod_mat_solve_triu(Zv_, LU, Yv, 0);
+      // y += z p^(k-1); res = (res - A' z) / p.
+      for (long i = 0; i < r; ++i) fmpz_addmul_ui(&y[i].v, &pk.v, nmod_mat_entry(Zv_, i, 0));
+      for (auto& e : sq) fmpz_submul_ui(&res[e.i].v, e.v, nmod_mat_entry(Zv_, e.k, 0));
+      for (long i = 0; i < r; ++i) fmpz_divexact_ui(&res[i].v, &res[i].v, p);
+      fmpz_mul_ui(&pk.v, &pk.v, p);
+
+      bool exact = true;  // res == 0: y is the exact (integer) solution
+      for (long i = 0; i < r && exact; ++i) exact = fmpz_is_zero(&res[i].v);
+      if (!exact && k < next_try) continue;
+      next_try = k + std::max(2L, k / 4);
+
+      bool ok = true;
+      for (long i = 0; i < r && ok; ++i) ok = fmpq_reconstruct_fmpz(&q[i].v, &y[i].v, &pk.v);
+      if (!ok) {
+        if (exact) break;
+        continue;
+      }
+      // x = D y / d_h
+      std::vector<std::vector<Exp>> ce(m);
+      std::vector<std::vector<fmpq*>> cc(m);
+      for (long i = 0; i < r; ++i) {
+        const long col = piv[i];
+        if (fmpq_is_zero(&q[i].v)) continue;
+        fmpq_mul_fmpz(&q[i].v, &q[i].v, &dg[col / S].v);
+        fmpq_div_fmpz(&q[i].v, &q[i].v, &dh.v);
+        ce[col / S].push_back(supp[col % S]);
+        cc[col / S].push_back(&q[i].v);
+      }
+      MembershipCertificate C{h, gens, {}, DA, DB};
+      for (long j = 0; j < m; ++j) C.cofactors.push_back(Poly::from_terms(R, ce[j], cc[j]));
+      if (verify(C)) {
+        found = std::move(C);
+        break;
+      }
+      if (exact) break;
+    }
+    nmod_mat_clear(LU);
+    nmod_mat_clear(Bv);
+    nmod_mat_clear(Yv);
+    nmod_mat_clear(Zv_);
+    if (found) return found;
   }
   return std::nullopt;
 }

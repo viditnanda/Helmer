@@ -87,3 +87,15 @@ def test_zero_elimination_ideal_has_nothing_certified():
     R = helmer.Ring("x,e")
     J, certs = helmer.eliminate_certified(helmer.Ideal(R, ["x*e-x"]), ["x"])
     assert J.gens == [] and certs == []
+
+
+def test_rational_generators():
+    # generators with denominators: exercises the integer scaling of the lifted system
+    R = helmer.Ring("x,y")
+    g1, g2 = helmer.Poly(R, "x^2-1/3*y"), helmer.Poly(R, "2/5*y^3-7/11")
+    I = helmer.Ideal(R, [g1, g2])
+    h = helmer.Poly(R, "3/7*x*y-1/2") * g1 + helmer.Poly(R, "5/13*x^2+1/9") * g2
+    for block in ([], ["x"], ["y"]):
+        c = helmer.certify_membership(I, h, block)
+        assert c is not None and helmer.verify_membership(I, c["target"], c["cofactors"])
+    assert helmer.certify_membership(I, h + helmer.Poly(R, "1/17"), ["x"]) is None

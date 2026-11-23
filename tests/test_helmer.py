@@ -157,3 +157,35 @@ def test_coincident_modular_generators(p, q):
     assert I == helmer.Ideal(R, ["x", "y"])
     helmer.set_seed(42)
     assert helmer.eliminate(I, ["x"]) == helmer.Ideal(R, ["y"])
+
+
+@pytest.mark.parametrize("u", ["x", "(x+t)"])
+def test_affine_cylinder_quartic(u):
+    R = helmer.Ring("x,y,z,w,t")
+    f = f"{u}^4+y^3*(z+t)+w^4"
+    messages = []
+    strata = helmer.whitney_stratify(helmer.Ideal(R, [f]), log=messages.append)
+    assert "affine cylinder: removing 1 free directions" in messages
+    assert set(strata) == set(range(5))
+    assert same(strata, as_strata(R, [(4, f), (2, f"{u},y,w"), (1, f"{u},y,w,z+t")]))
+
+
+@pytest.mark.parametrize("level", [-1, 0])
+@pytest.mark.parametrize("method", ["conormal", "polar"])
+def test_cylinder_rational_shear_and_repeated_factors(level, method):
+    R = helmer.Ring("x,y,z,w")
+    u, v = "(x+2/3*z-w)", "(y-5/2*z)"
+    I = helmer.Ideal(R, [f"({u}*{v})^2"])
+    strata = helmer.whitney_stratify(I, level=level, method=method)
+    expected = [(3, u), (3, v)]
+    if level != 0:
+        expected.append((2, f"{u},{v}"))
+    assert set(strata) == set(range(4))
+    assert same(strata, as_strata(R, expected))
+
+
+def test_cylinder_univariate_base():
+    R = helmer.Ring("x,y,z")
+    f = "(y+z-1)*(y+z+1)"
+    assert same(helmer.whitney_stratify(helmer.Ideal(R, [f])),
+                as_strata(R, [(2, "y+z-1"), (2, "y+z+1")]))

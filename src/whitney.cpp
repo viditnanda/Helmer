@@ -126,7 +126,28 @@ Ideal chart_saturate(const Ideal& K, const Poly& form) {
   auto G = groebner(H, homogeneous, perm, 0);
   std::vector<Poly> out;
   auto x = Poly::var(H, pivot);
-  for (size_t i = 0; i < G.polys.size(); ++i) {
+  // After division by x_p the leading monomials need no longer be
+  // minimal. A subset generating the same leading ideal is still a basis
+  // of the saturation. Discard redundant elements before substitution.
+  std::vector<size_t> order(G.polys.size());
+  std::iota(order.begin(), order.end(), 0);
+  std::vector<long> degrees;
+  for (const auto& m : G.lead)
+    degrees.push_back(std::accumulate(m.begin(), m.end(), 0L) - m[pivot]);
+  std::stable_sort(order.begin(), order.end(),
+                   [&](size_t a, size_t b) { return degrees[a] < degrees[b]; });
+  std::vector<size_t> minimal;
+  for (size_t i : order) {
+    bool redundant = std::any_of(minimal.begin(), minimal.end(), [&](size_t j) {
+      for (int k = 0; k <= n; ++k)
+        if (k != pivot && G.lead[j][k] > G.lead[i][k]) return false;
+      return true;
+    });
+    if (!redundant) minimal.push_back(i);
+  }
+  // Keep the original order for the downstream algebra.
+  std::sort(minimal.begin(), minimal.end());
+  for (size_t i : minimal) {
     auto& p = G.polys[i];
     if (int e = G.lead[i][pivot]) {
       Poly power(H);
@@ -220,6 +241,37 @@ Ideal whitney_points(const Ideal& Z, const Ideal& ConX, const RingPtr& R) {
 
 namespace {
 
+// Sparse column elimination over QQ. The first rows are polynomial images,
+// with one scalar row per monomial. The trailing polynomials carry a lift
+// through the same operations. A dependent column leaves its kernel vector
+// in the trailing entries.
+using ColumnPivots = std::map<std::pair<size_t, std::vector<long>>, std::vector<Poly>>;
+
+bool independent_column(std::vector<Poly>& column, size_t images, ColumnPivots& pivots) {
+  for (size_t i = 0; i < images; ++i) {
+    while (!column[i].is_zero()) {
+      const Poly& p = column[i];
+      auto row = std::make_pair(i, p.term_exp(0));
+      fmpq_t lc;
+      fmpq_init(lc);
+      fmpq_mpoly_get_term_coeff_fmpq(lc, p.raw(), 0, p.ring()->ctx());
+      Poly coefficient(p.ring());
+      fmpq_mpoly_set_fmpq(coefficient.raw(), lc, p.ring()->ctx());
+      fmpq_clear(lc);
+      auto it = pivots.find(row);
+      if (it == pivots.end()) {
+        for (size_t h = i; h < column.size(); ++h)
+          column[h] = divexact(column[h], coefficient);
+        pivots.emplace(std::move(row), std::move(column));
+        return true;
+      }
+      for (size_t h = i; h < column.size(); ++h)
+        column[h] = column[h] - coefficient * it->second[h];
+    }
+  }
+  return false;
+}
+
 // Eliminate the derivative columns over QQ, carrying each column's direction
 // with it. A dependency has the form e_j + sum_p a_p e_p, with p among the
 // pivot columns. Thus x_p - sum_j a_p x_j are coordinates on the quotient.
@@ -230,42 +282,15 @@ std::optional<Stratification> affine_cylinder(const Ideal& I, const WhitneyOptio
 
   // The row index includes the generator: equal monomials in different
   // equations are independent constraints on a translation direction.
-  struct Column { std::vector<Poly> derivatives; Poly direction; };
-  using Row = std::pair<size_t, std::vector<long>>;
-  std::map<Row, Column> echelon;
+  ColumnPivots echelon;
   std::vector<int> pivots;
   std::vector<std::pair<int, Poly>> kernel;
   for (int j = 0; j < n; ++j) {
-    Column col{{}, Poly::var(R, j)};
-    for (const auto& f : I.gens()) col.derivatives.push_back(f.derivative(j));
-    size_t i = 0;
-    while (i < col.derivatives.size()) {
-      const Poly& d = col.derivatives[i];
-      if (d.is_zero()) {
-        ++i;
-        continue;
-      }
-      Row row{i, d.term_exp(0)};
-      fmpq_t lc;
-      fmpq_init(lc);
-      fmpq_mpoly_get_term_coeff_fmpq(lc, d.raw(), 0, R->ctx());
-      Poly coefficient(R);
-      fmpq_mpoly_set_fmpq(coefficient.raw(), lc, R->ctx());
-      fmpq_clear(lc);
-      auto it = echelon.find(row);
-      if (it == echelon.end()) {
-        for (size_t k = i; k < col.derivatives.size(); ++k)
-          col.derivatives[k] = divexact(col.derivatives[k], coefficient);
-        col.direction = divexact(col.direction, coefficient);
-        echelon.emplace(std::move(row), std::move(col));
-        pivots.push_back(j);
-        break;
-      }
-      for (size_t k = i; k < col.derivatives.size(); ++k)
-        col.derivatives[k] = col.derivatives[k] - coefficient * it->second.derivatives[k];
-      col.direction = col.direction - coefficient * it->second.direction;
-    }
-    if (i == I.gens().size()) kernel.emplace_back(j, std::move(col.direction));
+    std::vector<Poly> column;
+    for (const auto& f : I.gens()) column.push_back(f.derivative(j));
+    column.push_back(Poly::var(R, j));
+    if (independent_column(column, I.gens().size(), echelon)) pivots.push_back(j);
+    else kernel.emplace_back(j, std::move(column.back()));
   }
   if (pivots.empty() || kernel.empty()) return {};
 
@@ -320,6 +345,42 @@ Ideal reduced_points(const Ideal& I) {
   }
   result.canonicalise();
   return result;
+}
+
+// On a smooth curve, a nonzero tangent field has an open local orbit.
+// If its flow preserves X and Z, Whitney (b) is invariant along this orbit.
+// Generic Whitney regularity on each component then gives regularity there.
+// The common zero set of all affine fields preserving the pair bounds the
+// exceptional locus. A positive-dimensional bound gives no shortcut.
+std::optional<Ideal> curve_orbit_bound(const Ideal& X, const Ideal& Z) {
+  const auto& R = X.ring();
+  const int n = R->nvars();
+  const size_t constraints = X.gens().size() + Z.gens().size();
+  ColumnPivots pivots;
+  std::vector<Poly> zeros;
+  for (int j = 0; j < n; ++j) {
+    for (int k = -1; k < n; ++k) {
+      Poly a = k < 0 ? Poly::constant(R, 1) : Poly::var(R, k);
+      // Column for a*d/dx_j. Carry the field coefficients after its images.
+      std::vector<Poly> column;
+      for (const Ideal* L : {&X, &Z})
+        for (const auto& f : L->gens())
+          column.push_back(L->normal_form(a * f.derivative(j)));
+      column.resize(constraints + n, Poly(R));
+      column[constraints + j] = a;
+      if (independent_column(column, constraints, pivots)) continue;
+      for (size_t h = constraints; h < column.size(); ++h) {
+        auto value = Z.normal_form(column[h]);
+        if (value.is_constant() && !value.is_zero())
+          return Ideal(R, {Poly::constant(R, 1)});
+        if (!value.is_zero()) zeros.push_back(std::move(value));
+      }
+    }
+  }
+  if (zeros.empty()) return {};
+  Ideal bound = Z + Ideal(R, std::move(zeros));
+  if (bound.dim() > 0) return {};
+  return bound;
 }
 
 struct Store {
@@ -456,14 +517,7 @@ static Stratification stratify_impl(const Ideal& I0, const WhitneyOptions& opts,
         continue;
       }
       if (mu > dimI - level) {
-        log("  conormal of a " + std::to_string(k) + "-dimensional piece");
-        auto chart = opts.saturation == "random" ? chart_form(Ia, singular) : std::nullopt;
-        // On a pure reduced union the open chart must meet every component.
-        if (grouped && chart && (Ia + *chart).dim() >= Ia.dim()) chart.reset();
-        if (chart) log("  conormal chart: " + chart->str());
-        const auto saturation = opts.saturation == "random" ? "minor" : opts.saturation;
-        Ideal C = conormal_impl(Ia, S, saturation, chart, grouped);
-        if (defer_primes) log("conormal complete");
+        std::optional<Ideal> C;
         for (int ell = mu; ell >= 0; --ell) {
           // Points have no smaller exceptional locus to add to a filtration.
           if (defer_primes && ell == 0) continue;
@@ -471,7 +525,24 @@ static Stratification stratify_impl(const Ideal& I0, const WhitneyOptions& opts,
           for (size_t zi = 0; zi < st.V[ell].size(); ++zi) {
             Ideal Z = st.V[ell][zi];
             if (!Z.contains(Ia)) continue;  // need V(Z) ⊆ V(Ia)
-            Ideal W = whitney_points(Z, C, R);
+            if (defer_primes && !opts.projective && ell == 1) {
+              if (auto bound = curve_orbit_bound(Ia, Z)) {
+                log("  curve orbit bound");
+                for (auto& K : lower_parts(*bound)) st.add(K);
+                continue;
+              }
+            }
+            if (!C) {
+              log("  conormal of a " + std::to_string(k) + "-dimensional piece");
+              auto chart = opts.saturation == "random" ? chart_form(Ia, singular) : std::nullopt;
+              // On a pure reduced union the open chart must meet every component.
+              if (grouped && chart && (Ia + *chart).dim() >= Ia.dim()) chart.reset();
+              if (chart) log("  conormal chart: " + chart->str());
+              const auto saturation = opts.saturation == "random" ? "minor" : opts.saturation;
+              C = conormal_impl(Ia, S, saturation, chart, grouped);
+              if (defer_primes) log("conormal complete");
+            }
+            Ideal W = whitney_points(Z, *C, R);
             if (W.is_unit()) continue;
             for (auto& K : lower_parts(W)) st.add(K);
           }

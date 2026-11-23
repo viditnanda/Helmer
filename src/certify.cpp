@@ -136,9 +136,9 @@ bool verify(const MembershipCertificate& C) {
   return sum.equal(C.target);
 }
 
-std::optional<MembershipCertificate> certify_membership_bounded(
+static std::optional<MembershipCertificate> solve_bounded(
     const std::vector<Poly>& gens, const Poly& h, const std::vector<int>& block, int DA, int DB,
-    int max_primes) {
+    int max_primes, int first_attempt, int end_attempt) {
   const RingPtr& R = h.ring();
   const int n = R->nvars();
   std::vector<char> in_block(n, 0);
@@ -223,7 +223,8 @@ std::optional<MembershipCertificate> certify_membership_bounded(
   //    cofactors that pass the exact check.
   // A pivot profile from an unlucky prime can only make that check fail; the whole
   // procedure is then repeated with another prime (three attempts in all).
-  for (int attempt = 0; attempt < 3; ++attempt, p = n_nextprime(p, 1)) {
+  for (int i = 0; i < first_attempt; ++i) p = n_nextprime(p, 1);
+  for (int attempt = first_attempt; attempt < end_attempt; ++attempt, p = n_nextprime(p, 1)) {
     nmod_t mod;
     nmod_init(&mod, p);
     auto red = [&](const fmpz* z) { return fmpz_fdiv_ui(z, p); };
@@ -336,6 +337,12 @@ std::optional<MembershipCertificate> certify_membership_bounded(
   return std::nullopt;
 }
 
+std::optional<MembershipCertificate> certify_membership_bounded(
+    const std::vector<Poly>& gens, const Poly& h, const std::vector<int>& block, int DA, int DB,
+    int max_primes) {
+  return solve_bounded(gens, h, block, DA, DB, max_primes, 0, 3);
+}
+
 std::optional<MembershipCertificate> certify_membership(const std::vector<Poly>& gens,
                                                         const Poly& h,
                                                         const std::vector<int>& block,
@@ -377,9 +384,15 @@ std::optional<MembershipCertificate> certify_membership(const std::vector<Poly>&
       if (u <= opt.max_unknowns) tries.emplace_back(u, static_cast<int>(DA), static_cast<int>(DB));
     }
   std::sort(tries.begin(), tries.end());
-  for (auto& [u, DA, DB] : tries) {
-    auto C = certify_membership_bounded(gens, h, block, DA, DB, opt.max_primes);
-    if (C) return C;
+  // Most failed supports are genuinely too small. Try larger supports before
+  // paying for a second elimination on each one. If none works, revisit all
+  // eligible supports using the remaining two primes.
+  for (int pass = 0; pass < 2; ++pass) {
+    for (auto& [u, DA, DB] : tries) {
+      auto C = solve_bounded(gens, h, block, DA, DB, opt.max_primes,
+                             pass == 0 ? 0 : 1, pass == 0 ? 1 : 3);
+      if (C) return C;
+    }
   }
   return std::nullopt;
 }

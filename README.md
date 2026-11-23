@@ -28,6 +28,12 @@ valid stratification (some strata may be empty or drop dimension), see [HLN].
 nonradical. It uses the minimal primes for the component strata and their
 intersection for the singular locus of an equidimensional union.
 
+On affine inputs Helmer first finds constant directions whose directional
+derivative annihilates every supplied generator. It stratifies a complementary
+linear slice, pulls its stratum closures back to the original coordinates and
+adds the number of free directions to their dimensions. For example, equations
+in joint-coordinate differences admit simultaneous translations of all joints.
+
 The default Whitney conormal computation first looks for an affine linear
 form vanishing on every singular component but nonzero on the parent
 component. On the dense smooth open where this form is invertible, the

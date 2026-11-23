@@ -220,37 +220,51 @@ namespace {
 // Eliminate the derivative columns over QQ, carrying each column's direction
 // with it. A dependency has the form e_j + sum_p a_p e_p, with p among the
 // pivot columns. Thus x_p - sum_j a_p x_j are coordinates on the quotient.
-std::optional<Stratification> affine_cylinder(const Poly& f, const WhitneyOptions& opts) {
-  const auto& R = f.ring();
+std::optional<Stratification> affine_cylinder(const Ideal& I, const WhitneyOptions& opts) {
+  const auto& R = I.ring();
   const int n = R->nvars();
-  if (n < 2 || f.is_constant()) return {};
+  if (n < 2 || I.gens().empty()) return {};
 
-  struct Column { Poly derivative, direction; };
-  std::map<std::vector<long>, Column> echelon;
+  // The row index includes the generator: equal monomials in different
+  // equations are independent constraints on a translation direction.
+  struct Column { std::vector<Poly> derivatives; Poly direction; };
+  using Row = std::pair<size_t, std::vector<long>>;
+  std::map<Row, Column> echelon;
   std::vector<int> pivots;
   std::vector<std::pair<int, Poly>> kernel;
   for (int j = 0; j < n; ++j) {
-    Poly d = f.derivative(j), direction = Poly::var(R, j);
-    while (!d.is_zero()) {
-      auto exponent = d.term_exp(0);
+    Column col{{}, Poly::var(R, j)};
+    for (const auto& f : I.gens()) col.derivatives.push_back(f.derivative(j));
+    size_t i = 0;
+    while (i < col.derivatives.size()) {
+      const Poly& d = col.derivatives[i];
+      if (d.is_zero()) {
+        ++i;
+        continue;
+      }
+      Row row{i, d.term_exp(0)};
       fmpq_t lc;
       fmpq_init(lc);
       fmpq_mpoly_get_term_coeff_fmpq(lc, d.raw(), 0, R->ctx());
       Poly coefficient(R);
       fmpq_mpoly_set_fmpq(coefficient.raw(), lc, R->ctx());
       fmpq_clear(lc);
-      auto it = echelon.find(exponent);
+      auto it = echelon.find(row);
       if (it == echelon.end()) {
-        echelon.emplace(std::move(exponent), Column{d.monic(), divexact(direction, coefficient)});
+        for (size_t k = i; k < col.derivatives.size(); ++k)
+          col.derivatives[k] = divexact(col.derivatives[k], coefficient);
+        col.direction = divexact(col.direction, coefficient);
+        echelon.emplace(std::move(row), std::move(col));
         pivots.push_back(j);
         break;
       }
-      d = d - coefficient * it->second.derivative;
-      direction = direction - coefficient * it->second.direction;
+      for (size_t k = i; k < col.derivatives.size(); ++k)
+        col.derivatives[k] = col.derivatives[k] - coefficient * it->second.derivatives[k];
+      col.direction = col.direction - coefficient * it->second.direction;
     }
-    if (d.is_zero()) kernel.emplace_back(j, std::move(direction));
+    if (i == I.gens().size()) kernel.emplace_back(j, std::move(col.direction));
   }
-  if (kernel.empty()) return {};
+  if (pivots.empty() || kernel.empty()) return {};
 
   std::vector<std::string> names;
   for (int p : pivots) names.push_back(R->names()[p]);
@@ -266,11 +280,15 @@ std::optional<Stratification> affine_cylinder(const Poly& f, const WhitneyOption
   }
 
   const int shift = n - base->nvars();
-  if (opts.log) opts.log("affine cylinder: removing " + std::to_string(shift) + " free directions");
+  if (opts.log) opts.log("affine cylinder: removing " + std::to_string(shift) + (shift == 1 ? " free direction" : " free directions"));
   WhitneyOptions base_opts = opts;
-  base_opts.level = std::min(opts.level, base->nvars() - 1);
-  auto reduced = whitney_stratify(Ideal(base, {f.substitute(base, section)}), base_opts);
+  std::vector<Poly> equations;
+  for (const auto& f : I.gens()) equations.push_back(f.substitute(base, section));
+  Ideal base_ideal(base, std::move(equations));
+  if (opts.level >= 0) base_opts.level = std::min(opts.level, base_ideal.dim());
+  auto reduced = whitney_stratify(base_ideal, base_opts);
   Stratification out{R, false, {}};
+  if (reduced.strata.empty()) return out;  // empty variety
   for (int d = 0; d < shift; ++d) out.strata[d];
   for (const auto& [d, pieces] : reduced.strata) {
     auto& lifted = out.strata[d + shift];
@@ -313,8 +331,8 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
     if (opts.log) opts.log(s);
   };
   const RingPtr& R = I0.ring();
-  if (!opts.projective && I0.gens().size() == 1) {
-    if (auto cylinder = affine_cylinder(I0.gens().front(), opts)) return std::move(*cylinder);
+  if (!opts.projective) {
+    if (auto cylinder = affine_cylinder(I0, opts)) return std::move(*cylinder);
   }
   const int nv = R->nvars();
   const int n = opts.projective ? nv - 1 : nv;

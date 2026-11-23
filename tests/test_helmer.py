@@ -30,6 +30,18 @@ def test_whitney_matches_m2(name):
     assert same(WS, as_strata(R, ex["m2_HM_strata"]))
 
 
+@pytest.mark.parametrize("variables,f,projective,expected", [
+    ("x,y", "y^2-x^3", False, [(0, "x,y"), (1, "y^2-x^3")]),
+    ("x,y", "x*y", False, [(0, "x,y"), (1, "x"), (1, "y")]),
+    ("x,y,z", "x^2+y^2-z^2", False, [(0, "x,y,z"), (2, "x^2+y^2-z^2")]),
+    ("x,y,z", "x*y", True, [(0, "x,y"), (1, "x"), (1, "y")]),
+])
+def test_nonreduced_whitney(variables, f, projective, expected):
+    R = helmer.Ring(variables)
+    WS = helmer.whitney_stratify(helmer.Ideal(R, [f"({f})^2"]), projective=projective)
+    assert same(WS, as_strata(R, expected))
+
+
 def test_map_quadratic_roots():
     R, S = helmer.Ring("a,b,c,x"), helmer.Ring("a,b,c")
     X, Y = helmer.map_stratify(["a", "b", "c"], helmer.Ideal(R, ["a*x^2+b*x+c"]), helmer.Ideal(S, []), proper=False)

@@ -99,3 +99,16 @@ def test_rational_generators():
         c = helmer.certify_membership(I, h, block)
         assert c is not None and helmer.verify_membership(I, c["target"], c["cofactors"])
     assert helmer.certify_membership(I, h + helmer.Poly(R, "1/17"), ["x"]) is None
+
+
+@pytest.mark.parametrize("generator,target", [
+    ("x", "5000*x"),
+    ("x/3", "50000*x/7"),
+    ("x", "12345678901234567890*x"),
+])
+def test_exact_padic_solution(generator, target):
+    R = helmer.Ring("x")
+    I = helmer.Ideal(R, [generator])
+    cert = helmer.certify_membership(I, target, [])
+    assert cert is not None
+    assert helmer.verify_membership(I, target, cert["cofactors"])

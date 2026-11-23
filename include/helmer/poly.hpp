@@ -105,6 +105,7 @@ Poly radical_part(const Poly& a);
 
 // Process-wide RNG for the probabilistic steps (seedable for reproducibility).
 std::mt19937_64& rng();
+std::mt19937_64& gb_prime_rng();
 void set_seed(uint64_t s);
 long random_coeff(long bound);  // uniform in [-bound, bound] \ {0}
 

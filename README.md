@@ -24,6 +24,10 @@ open strata are the connected components of `V(P)` minus the lower-dimensional
 closures, exactly as in the Macaulay2 package. Over ℝ the same polynomials describe a
 valid stratification (some strata may be empty or drop dimension), see [HLN].
 
+`whitney_stratify` stratifies the reduced variety even when its input ideal is
+nonradical. It uses the minimal primes for the component strata and their
+intersection for the singular locus of an equidimensional union.
+
 ## What is implemented
 
 | Macaulay2 (`WhitneyStratifications`)   | Helmer                                   | Notes |

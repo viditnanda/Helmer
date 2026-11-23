@@ -125,11 +125,10 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
     if (opts.log) opts.log(s);
   };
   const RingPtr& R = I0.ring();
-  Ideal I = I0;
   const int nv = R->nvars();
   const int n = opts.projective ? nv - 1 : nv;
   Store st{n, {}, {}};
-  const int dimI = n - I.codim();
+  const int dimI = n - I0.codim();
   for (int i = 0; i <= std::max(dimI, 0); ++i) {
     st.V[i];
     st.keys[i];
@@ -138,7 +137,7 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
   if (dimI < 0) return out;
 
   log("decompose X");
-  auto comps = minimal_primes(I);
+  auto comps = minimal_primes(I0);
   bool equidim = true;
   for (auto& P : comps) {
     st.add(P);  // each component at its own dimension
@@ -158,15 +157,23 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
       for (size_t j = i + 1; j < comps.size(); ++j)
         for (auto& th : minimal_primes(comps[i] + comps[j])) st.add(th);
 
-  Ideal J = jacobian_ideal(I);
-  if (equidim && dimI < 2) {
-    for (auto& K : minimal_primes(J))
-      if (st.dim_of(K) < dimI) st.add(K);
-    return finish();
+  if (equidim) {
+    // The Jacobian criterion applies to the reduced variety. All later
+    // Jacobians are already taken on the individual prime components.
+    if (comps.empty()) return finish();
+    Ideal reduced = comps.front();
+    for (size_t i = 1; i < comps.size(); ++i) reduced = intersect(reduced, comps[i]);
+    Ideal J = jacobian_ideal(reduced);
+    if (dimI < 2) {
+      for (auto& K : minimal_primes(J))
+        if (st.dim_of(K) < dimI) st.add(K);
+      return finish();
+    }
+    const int codimJ = J.codim();
+    if (codimJ == n)
+      for (auto& K : minimal_primes(J)) st.add(K);
+    if (codimJ >= n) return finish();
   }
-  if (equidim && J.codim() == n)
-    for (auto& K : minimal_primes(J)) st.add(K);
-  if (equidim && J.codim() >= n) return finish();
 
   RingPtr S = conormal_ring(R);
   for (int a = 0; a < level; ++a) {

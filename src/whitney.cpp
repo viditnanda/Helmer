@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <numeric>
 
 namespace helmer {
 
@@ -22,7 +23,123 @@ static std::vector<int> identity(int n) {
   return m;
 }
 
-Ideal conormal(const Ideal& I, const RingPtr& S, const std::string& saturation) {
+namespace {
+
+// With a degree-compatible order, the linear elements of a reduced basis
+// span all affine linear forms in the ideal.
+std::optional<Poly> chart_form(const Ideal& X, const std::vector<Ideal>& singular) {
+  if (singular.empty()) return {};
+  auto R = X.ring();
+  for (int i = R->nvars() - 1; i >= 0; --i) {
+    auto x = Poly::var(R, i);
+    if (std::all_of(singular.begin(), singular.end(),
+                    [&](const Ideal& P) { return P.contains(x); }) && !X.contains(x))
+      return x;
+  }
+
+  std::vector<Poly> forms;
+  for (const auto& g : singular.front().gb().polys)
+    if (g.total_degree() == 1) forms.push_back(g);
+  for (size_t j = 1; j < singular.size() && !forms.empty(); ++j) {
+    // Gaussian elimination on the images of the forms modulo the next prime.
+    // Apply the same row operations to the forms to recover the kernel.
+    std::vector<Poly> kernel;
+    std::map<std::vector<long>, std::pair<Poly, Poly>> pivots;
+    for (auto form : forms) {
+      auto image = singular[j].normal_form(form);
+      while (!image.is_zero()) {
+        auto exp = image.term_exp(0);
+        auto pos = pivots.find(exp);
+        if (pos == pivots.end()) {
+          pivots.emplace(exp, std::make_pair(image, form));
+          break;
+        }
+        const auto& [other, lift] = pos->second;
+        auto var = std::find(exp.begin(), exp.end(), 1L);
+        // Images are affine linear. At a constant pivot the image is constant.
+        auto coeff = [&](const Poly& p) {
+          return var == exp.end() ? p : p.derivative(var - exp.begin());
+        };
+        auto a = coeff(other), b = coeff(image);
+        image = a * image - b * other;
+        form = a * form - b * lift;
+      }
+      if (image.is_zero()) kernel.push_back(form.primitive());
+    }
+    forms = std::move(kernel);
+  }
+  std::stable_sort(forms.begin(), forms.end(), [](const Poly& a, const Poly& b) {
+    return a.nterms() < b.nterms();
+  });
+  for (const auto& form : forms)
+    if (!X.contains(form)) return form.monic();
+  return {};
+}
+
+// Express the equations in coordinates where the chosen monic form is x_p,
+// homogenize, and use graded reverse lex with x_p last. In a homogeneous
+// basis element its leading term has the smallest x_p exponent among its
+// terms. Removing that power gives a basis of the saturation. Setting h=1
+// and undoing the affine substitution recovers generators in the input ring.
+Ideal chart_saturate(const Ideal& K, const Poly& form) {
+  auto S = K.ring();
+  const int n = S->nvars();
+  auto lead = form.term_exp(0);
+  const int pivot = std::find(lead.begin(), lead.end(), 1L) - lead.begin();
+  auto names = S->names();
+  std::string hname = "helmer_h";
+  while (S->index_of(hname) >= 0) hname += "_";
+  names.push_back(hname);
+  auto H = Ring::make(names);
+  auto ids = identity(n);
+  std::vector<Poly> forward, back;
+  for (int i = 0; i < n; ++i) {
+    forward.push_back(Poly::var(H, i));
+    back.push_back(Poly::var(S, i));
+  }
+  const bool tilted = form.nterms() > 1;
+  if (tilted) {
+    auto offset = form.embed(H, ids) - forward[pivot];  // form = x_p + offset
+    forward[pivot] = forward[pivot] - offset;
+    back[pivot] = form;
+  }
+  back.push_back(Poly::constant(S, 1));
+  std::vector<Poly> homogeneous;
+  for (const auto& f : K.gens()) {
+    if (f.is_zero()) continue;
+    auto p = tilted ? f.substitute(H, forward) : f.embed(H, ids);
+    long degree = p.total_degree();
+    for (long j = 0; j < p.nterms(); ++j) {
+      auto e = p.term_exp(j);
+      e[n] = degree - std::accumulate(e.begin(), e.end(), 0L);
+      std::vector<ulong> exponents(e.begin(), e.end());
+      fmpq_mpoly_set_term_exp_ui(p.raw(), j, exponents.data(), H->ctx());
+    }
+    fmpq_mpoly_sort_terms(p.raw(), H->ctx());
+    homogeneous.push_back(std::move(p));
+  }
+  auto perm = identity(n + 1);
+  perm.erase(perm.begin() + pivot);
+  perm.push_back(pivot);
+  auto G = groebner(H, homogeneous, perm, 0);
+  std::vector<Poly> out;
+  auto x = Poly::var(H, pivot);
+  for (size_t i = 0; i < G.polys.size(); ++i) {
+    auto& p = G.polys[i];
+    if (int e = G.lead[i][pivot]) {
+      Poly power(H);
+      fmpq_mpoly_pow_ui(power.raw(), x.raw(), e, H->ctx());
+      p = divexact(p, power);
+    }
+    out.push_back(p.substitute(S, back));
+  }
+  return Ideal(S, std::move(out));
+}
+
+}  // namespace
+
+static Ideal conormal_impl(const Ideal& I, const RingPtr& S, const std::string& saturation,
+                           const std::optional<Poly>& chart) {
   const RingPtr& R = I.ring();
   const int n = R->nvars();
   const int c = I.codim();
@@ -43,6 +160,7 @@ Ideal conormal(const Ideal& I, const RingPtr& S, const std::string& saturation) 
   auto K = minors(c + 1, M);
   gens.insert(gens.end(), K.begin(), K.end());
   if (c == 0) return Ideal(S, gens);  // ambient space: the zero section, no saturation
+  if (chart) return chart_saturate(Ideal(S, std::move(gens)), chart->embed(S, idm));
   auto cminors = minors(c, J1);
   if (saturation == "minor") {
     // I prime: the conormal over the dense open set {g != 0} of X is smooth and
@@ -57,6 +175,10 @@ Ideal conormal(const Ideal& I, const RingPtr& S, const std::string& saturation) 
   std::vector<Poly> sat;
   for (auto& p : cminors) sat.push_back(p.embed(S, idm));
   return saturate(Ideal(S, gens), Ideal(S, sat), saturation);
+}
+
+Ideal conormal(const Ideal& I, const RingPtr& S, const std::string& saturation) {
+  return conormal_impl(I, S, saturation, {});
 }
 
 std::vector<Ideal> polar_varieties(const Ideal& I, const Ideal& Jsing, long bound) {
@@ -187,7 +309,8 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
     for (auto& Ia : cur) {
       Ideal Ja = jacobian_ideal(Ia);
       const int mu = st.dim_of(Ja);  // dim of Sing(Ia); negative if smooth
-      for (auto& K : minimal_primes(Ja))
+      auto singular = minimal_primes(Ja);
+      for (auto& K : singular)
         if (st.dim_of(K) < k) st.add(K);
       if (opts.method == "polar") {
         // Teissier: (B) fails along Y ⊆ Sing only where polar multiplicities jump;
@@ -202,7 +325,9 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
       }
       if (mu > dimI - level) {
         log("  conormal of a " + std::to_string(k) + "-dimensional piece");
-        Ideal C = conormal(Ia, S, opts.saturation == "random" ? "minor" : opts.saturation);
+        auto chart = opts.saturation == "random" ? chart_form(Ia, singular) : std::nullopt;
+        if (chart) log("  conormal chart: " + chart->str());
+        Ideal C = conormal_impl(Ia, S, opts.saturation == "random" ? "minor" : opts.saturation, chart);
         for (int ell = mu; ell >= 0; --ell) {
           // iterate by index: entries appended at dimension < ell do not affect this list
           for (size_t zi = 0; zi < st.V[ell].size(); ++zi) {

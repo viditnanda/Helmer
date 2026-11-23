@@ -49,6 +49,26 @@ def test_saturate_with_repeated_factors():
     assert helmer.saturate(I, f) == helmer.Ideal(R, ["z^2"])
 
 
+@pytest.mark.parametrize("variables,gens,expected_chart", [
+    ("x,y,z", ["x^2-y^2*z"], "y"),
+    ("x,y,z", ["(x-y-1)^2-(z-y)^2*y"], "y - z"),
+    # Two singular lines share one translated plane.
+    ("x,y,z", ["(x+y-1)^2-(x*(z-1))^2*z"], "x + y - 1"),
+    # The twisted cubic spans the ambient space. Adding w=0 makes its
+    # affine hull a hyperplane shared by the entire parent variety.
+    ("x,y,z", ["(x-y^2)^2-(z-y^3)^2*y"], None),
+    ("x,y,z,w", ["w", "(x-y^2)^2-(z-y^3)^2*y"], None),
+])
+def test_conormal_chart(variables, gens, expected_chart):
+    R = helmer.Ring(variables)
+    I = helmer.Ideal(R, gens)
+    messages = []
+    actual = helmer.whitney_stratify(I, log=messages.append)
+    charts = [m.split(": ", 1)[1] for m in messages if "conormal chart:" in m]
+    assert charts == ([expected_chart] if expected_chart else [])
+    assert same(actual, helmer.whitney_stratify(I, saturation="minor"))
+
+
 def test_map_quadratic_roots():
     R, S = helmer.Ring("a,b,c,x"), helmer.Ring("a,b,c")
     X, Y = helmer.map_stratify(["a", "b", "c"], helmer.Ideal(R, ["a*x^2+b*x+c"]), helmer.Ideal(S, []), proper=False)

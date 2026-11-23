@@ -233,6 +233,16 @@ pip install .
 pytest tests/
 ```
 
+An experimental build with `-DHELMER_F4_TRACE=ON` enables trace replay for
+single-threaded, unblocked DRL computations using msolve 0.7.5. The first
+prime uses ordinary F4. A run taking at least 5 ms can trigger learning at
+the next prime if reconstruction has no candidate, the basis has several
+elements and the primes so far agree on leading monomials. Confirmation uses
+independent F4. A rejected trace restarts the lift using ordinary F4.
+`helmer.stats()` reports learning, replay and fallback counts. The default
+build leaves this experiment disabled. In repeated rejected replays,
+msolve 0.7.5 retains memory on its error path.
+
 ## Licence
 
 GPL-3.0-or-later. msolve is GPL-2.0-or-later and FLINT LGPL-3.0-or-later, so any

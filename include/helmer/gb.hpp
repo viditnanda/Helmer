@@ -12,6 +12,9 @@ namespace helmer {
 struct GBStats {
   long calls = 0;        // groebner() calls
   long f4_runs = 0;      // msolve F4 runs (one per prime)
+  long trace_learns = 0;
+  long trace_replays = 0;
+  long trace_fallbacks = 0;
   long unlucky = 0;      // primes discarded as unlucky
   double seconds = 0.0;  // wall time inside groebner()
 };
@@ -34,6 +37,7 @@ struct GBOptions {
   int min_primes = 2;        // primes agreeing before accepting a reconstruction
   int max_primes = 4000;     // hard cap
   int msolve_threads = 1;
+  double trace_min_ms = 5.0;  // negative disables tracing in a trace-enabled build
 };
 GBOptions& gb_options();
 

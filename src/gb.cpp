@@ -1,4 +1,5 @@
 #include "helmer/gb.hpp"
+#include "f4_trace.h"
 
 #include <flint/fmpq.h>
 #include <flint/fmpz.h>
@@ -79,23 +80,30 @@ struct IntInput {
   std::vector<Z> coeffs;
 };
 
-bool run_f4(const IntInput& in, uint32_t p, int ebl, ModResult& out) {
+bool run_f4(const IntInput& in, uint32_t p, int ebl, ModResult& out, HelmerF4Trace* trace = nullptr) {
   const size_t nt = in.coeffs.size();
-  std::vector<int32_t> cfs(nt);
-  for (size_t i = 0; i < nt; ++i) {
-    ulong r = fmpz_fdiv_ui(&in.coeffs[i].v, p);
-    cfs[i] = static_cast<int32_t>(r);
-  }
   int32_t bld = 0;
   int32_t* blen = nullptr;
   int32_t* bexp = nullptr;
   void* bcf = nullptr;
   const int32_t ngens = static_cast<int32_t>(in.lens.size());
-  int64_t nterms = export_f4(std::malloc, &bld, &blen, &bexp, &bcf, in.lens.data(), in.exps.data(),
-                             cfs.data(), p, /*mon_order DRL*/ 0, ebl, in.nvars, ngens,
-                             /*ht_size*/ 12, gb_options().msolve_threads, /*max_nr_pairs*/ 0,
-                             /*reset_ht*/ 0, /*la_option*/ 2, /*reduce_gb*/ 1, /*pbm*/ 0,
-                             /*info*/ 0);
+  int64_t nterms;
+#ifdef HELMER_F4_TRACE
+  if (trace) nterms = helmer_trace_run(trace, p, &bld, &blen, &bexp, &bcf);
+  else
+#endif
+  {
+    std::vector<int32_t> cfs(nt);
+    for (size_t i = 0; i < nt; ++i) {
+      ulong r = fmpz_fdiv_ui(&in.coeffs[i].v, p);
+      cfs[i] = static_cast<int32_t>(r);
+    }
+    nterms = export_f4(std::malloc, &bld, &blen, &bexp, &bcf, in.lens.data(), in.exps.data(),
+                       cfs.data(), p, /*mon_order DRL*/ 0, ebl, in.nvars, ngens,
+                       /*ht_size*/ 12, gb_options().msolve_threads, /*max_nr_pairs*/ 0,
+                       /*reset_ht*/ 0, /*la_option*/ 2, /*reduce_gb*/ 1, /*pbm*/ 0,
+                       /*info*/ 0);
+  }
   gb_stats().f4_runs++;
   if (nterms <= 0 || bld <= 0) {
     if (blen || bexp || bcf) free_f4_julia_result_data(std::free, &blen, &bexp, &bcf, bld, p);
@@ -299,6 +307,11 @@ GB groebner(const RingPtr& R, const std::vector<Poly>& F, const std::vector<int>
   std::set<ulong> used;
   std::uniform_int_distribution<ulong> odd(1UL << 29, (1UL << 30) - 1);
   const Accum* winner = nullptr;
+#ifdef HELMER_F4_TRACE
+  std::unique_ptr<HelmerF4Trace, decltype(&helmer_trace_free)> trace(nullptr, helmer_trace_free);
+  bool may_learn = !ebl && gb_options().msolve_threads == 1 && gb_options().trace_min_ms >= 0;
+  bool learn_next = false;
+#endif
   for (int it = 0; it < gb_options().max_primes && !winner; ++it) {
     ulong p;
     do { p = 2 * odd(gb_prime_rng()) + 1; } while (!n_is_prime(p) || !used.insert(p).second);
@@ -307,9 +320,41 @@ GB groebner(const RingPtr& R, const std::vector<Poly>& F, const std::vector<int>
       if (fmpz_fdiv_ui(&c.v, p) == 0) { bad = true; break; }
     if (bad) continue;
     ModResult r;
-    if (!run_f4(in, static_cast<uint32_t>(p), ebl, r)) { gb_stats().unlucky++; continue; }
+    HelmerF4Trace* active = nullptr;
+#ifdef HELMER_F4_TRACE
+    if (learn_next) {
+      std::vector<const fmpz*> coeffs;
+      for (const auto& c : in.coeffs) coeffs.push_back(&c.v);
+      trace.reset(helmer_trace_create(in.lens.data(), in.exps.data(), coeffs.data(),
+                                      coeffs.size(), n, in.lens.size()));
+      learn_next = false;
+      may_learn = false;  // at most one learning attempt per rational basis
+      if (trace) ++gb_stats().trace_learns;
+      active = trace.get();
+    } else if (trace && !groups.begin()->second.has_candidate) {
+      active = trace.get();
+      ++gb_stats().trace_replays;
+    }
+    auto start = std::chrono::steady_clock::now();
+#endif
+    bool ok = run_f4(in, p, ebl, r, active);
+#ifdef HELMER_F4_TRACE
+    double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    if (trace && (!ok || !groups.count(r.signature))) {
+      ++gb_stats().trace_fallbacks;
+      bool retry_prime = active != nullptr;
+      active = nullptr;
+      trace.reset();
+      groups.clear();  // discard residues that depended on the trace
+      if (retry_prime) {
+        r = ModResult{};
+        ok = run_f4(in, p, ebl, r);
+      }
+    }
+#endif
+    if (!ok) { ++gb_stats().unlucky; continue; }
     Accum& A = groups[r.signature];
-    if (A.has_candidate && A.confirms(r, static_cast<uint32_t>(p)) && reduces_input(in, ebl, A)) {
+    if (!active && A.has_candidate && A.confirms(r, static_cast<uint32_t>(p)) && reduces_input(in, ebl, A)) {
       winner = &A;
       break;
     }
@@ -319,6 +364,12 @@ GB groebner(const RingPtr& R, const std::vector<Poly>& F, const std::vector<int>
       A.next_check = A.nprimes + std::max(1, A.nprimes / 4);
       A.reconstruct();
     }
+#ifdef HELMER_F4_TRACE
+    // Confirmation always runs independent F4. Defer learning until a
+    // material ordinary run leaves the lift without a candidate to confirm.
+    learn_next = may_learn && !A.has_candidate && groups.size() == 1 &&
+                 r.elems.size() > 1 && ms >= gb_options().trace_min_ms;
+#endif
   }
   if (!winner) throw std::runtime_error("helmer: modular Gröbner basis did not stabilise");
   for (auto& [sig, A] : groups)

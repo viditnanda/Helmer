@@ -42,6 +42,13 @@ def test_nonreduced_whitney(variables, f, projective, expected):
     assert same(WS, as_strata(R, expected))
 
 
+def test_saturate_with_repeated_factors():
+    R = helmer.Ring("x,y,z")
+    I = helmer.Ideal(R, ["x^3*(x+y)^4*z^2"])
+    f = helmer.Ideal(R, ["7*x^2*(x+y)^3"])
+    assert helmer.saturate(I, f) == helmer.Ideal(R, ["z^2"])
+
+
 def test_map_quadratic_roots():
     R, S = helmer.Ring("a,b,c,x"), helmer.Ring("a,b,c")
     X, Y = helmer.map_stratify(["a", "b", "c"], helmer.Ideal(R, ["a*x^2+b*x+c"]), helmer.Ideal(S, []), proper=False)

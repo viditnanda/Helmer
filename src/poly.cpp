@@ -232,9 +232,14 @@ std::vector<std::pair<Poly, long>> factor(const Poly& a) {
 
 Poly radical_part(const Poly& a) {
   if (a.is_zero()) return a;
-  Poly r = Poly::constant(a.ring(), 1);
-  for (auto& [p, e] : factor(a)) r = r * p;
-  return r.primitive();
+  // In characteristic zero the gcd with all partials removes one copy
+  // of each irreducible factor from a.
+  Poly repeated = a;
+  for (int i = 0; i < a.ring()->nvars() && !repeated.is_constant(); ++i) {
+    Poly partial = a.derivative(i);
+    if (!partial.is_zero()) repeated = gcd(repeated, partial);
+  }
+  return divexact(a, repeated).primitive();
 }
 
 std::mt19937_64& rng() {

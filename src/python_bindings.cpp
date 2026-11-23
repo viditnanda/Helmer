@@ -177,6 +177,9 @@ PYBIND11_MODULE(_helmer, m) {
      py::arg("method") = "conormal", py::arg("polar_bound") = 1000,
      "Whitney stratification. method='conormal' (Helmer–Mohr; default) or 'polar' "
      "(polar varieties; usually faster, randomised, generally non-minimal).");
+  m.def("whitney_filtration", &whitney_filtration, py::arg("ideal"), py::arg("projective") = false,
+        py::arg("defer") = true, py::arg("log") = nullptr,
+        "Vanishing ideals of the cumulative closed dimension filtration.");
   m.def("polar_varieties", [](const Ideal& I, long bound) {
     return polar_varieties(I, jacobian_ideal(I), bound);
   }, py::arg("ideal"), py::arg("bound") = 1000,

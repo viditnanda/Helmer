@@ -36,6 +36,13 @@ ideal. It falls back to prime decomposition where needed. Pass `defer=False`
 to construct the filtration from the usual prime closures. The two methods
 can produce different Whitney refinements.
 
+For an affine curve in the deferred filtration, Helmer computes affine-linear
+vector fields preserving both the upper variety and the curve. Where one of
+these fields is nonzero on the smooth curve, its local flow sweeps out an open
+subset and preserves the pair. Generic Whitney regularity therefore holds
+there. If the common zero set on the curve is finite (possibly empty), it
+bounds the exceptional points. Otherwise Helmer uses the conormal test.
+
 On affine inputs Helmer first finds constant directions whose directional
 derivative annihilates every supplied generator. It stratifies a complementary
 linear slice, pulls its stratum closures back to the original coordinates and

@@ -51,3 +51,38 @@ def test_conormal_of_union_with_no_dense_jacobian_minor():
     F = helmer.whitney_filtration(I)
     assert F == {0: helmer.Ideal(R, ["x", "y", "z"]),
                  1: helmer.Ideal(R, ["x*y", "x*z", "y*z"]), 2: I}
+
+
+def test_rotating_polygon_has_no_exceptional_points():
+    R = helmer.Ring("x0,y0,x1,y1,x2,y2")
+    I = helmer.Ideal(R, ["x0^2+y0^2-1", "x1^2+y1^2-4", "x2^2+y2^2-9",
+                         "(x0+x1+x2)^2+(y0+y1+y2)^2-4"])
+    # The singular configurations are all rotations of (1,-2,3) along one axis.
+    circle = helmer.Ideal(R, ["3*x0-x2", "3*y0-y2", "3*x1+2*x2", "3*y1+2*y2",
+                              "x2^2+y2^2-9"])
+    log = []
+    F = helmer.whitney_filtration(I, log=log.append)
+    assert F == {0: helmer.Ideal(R, ["1"]), 1: circle, 2: I}
+    assert "  curve orbit bound" in log and "conormal complete" not in log
+
+
+def test_quartic_orbit_bound_after_translation_and_shear():
+    R = helmer.Ring("x,y,z,w,t")
+    a = "(x+t-2)"
+    I = helmer.Ideal(R, [f"{a}^4+y^3*z+z^4+(t-2)*{a}*y^2+w^4"])
+    axis = helmer.Ideal(R, [a, "y", "z", "w"])
+    vertex = helmer.Ideal(R, ["x", "y", "z", "w", "t-2"])
+    log = []
+    F = helmer.whitney_filtration(I, log=log.append)
+    assert F == {0: vertex, 1: axis, 2: axis, 3: axis, 4: I}
+    assert "  curve orbit bound" in log and "conormal complete" not in log
+
+
+def test_symmetry_fixing_the_curve_requires_conormal():
+    R = helmer.Ring("x,y,t")
+    I = helmer.Ideal(R, ["x^4+y^4+(t^2+t+1)*x^2*y^2"])
+    log = []
+    F = helmer.whitney_filtration(I, log=log.append)
+    # Scaling x and y fixes the t-axis. Two branches coalesce for c(t)=±2.
+    assert F[0] == helmer.Ideal(R, ["x", "y", "(t^2+t-1)*(t^2+t+3)"])
+    assert "conormal complete" in log and "  curve orbit bound" not in log

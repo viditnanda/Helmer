@@ -52,6 +52,12 @@ Ideal whitney_points(const Ideal& Z, const Ideal& ConX, const RingPtr& R);
 
 Stratification whitney_stratify(const Ideal& I, const WhitneyOptions& opts = {});
 
+// Cumulative closed sets X_{<=d}, given by their vanishing ideals. The
+// conormal algorithm can group reduced equidimensional top pieces here.
+std::map<int, Ideal> whitney_filtration(const Ideal& I, bool projective = false,
+                                        bool defer_primes = true,
+                                        std::function<void(const std::string&)> log = {});
+
 // ---------------------------------------------------------------- maps
 // Stratify a polynomial map f = (F_1..F_m): X = V(IX) ⊆ k^n -> Y = V(IY) ⊆ k^m so that
 // each stratum of X maps submersively into a stratum of Y (Thom's isotopy lemma

@@ -23,6 +23,8 @@ static std::vector<int> identity(int n) {
   return m;
 }
 
+static Stratification stratify_impl(const Ideal&, const WhitneyOptions&, bool defer_primes);
+
 namespace {
 
 // With a degree-compatible order, the linear elements of a reduced basis
@@ -139,7 +141,7 @@ Ideal chart_saturate(const Ideal& K, const Poly& form) {
 }  // namespace
 
 static Ideal conormal_impl(const Ideal& I, const RingPtr& S, const std::string& saturation,
-                           const std::optional<Poly>& chart) {
+                           const std::optional<Poly>& chart, bool grouped = false) {
   const RingPtr& R = I.ring();
   const int n = R->nvars();
   const int c = I.codim();
@@ -169,12 +171,13 @@ static Ideal conormal_impl(const Ideal& I, const RingPtr& S, const std::string& 
     std::sort(cminors.begin(), cminors.end(),
               [](const Poly& a, const Poly& b) { return a.nterms() < b.nterms(); });
     for (auto& g : cminors)
-      if (!I.contains(g)) return saturate(Ideal(S, gens), g.embed(S, idm));
-    throw std::invalid_argument("helmer: conormal: every c-minor lies in I (not reduced?)");
+      if (grouped ? (I + g).dim() < I.dim() : !I.contains(g))
+        return saturate(Ideal(S, gens), g.embed(S, idm));
+    if (!grouped) throw std::invalid_argument("helmer: conormal: every c-minor lies in I (not reduced?)");
   }
   std::vector<Poly> sat;
   for (auto& p : cminors) sat.push_back(p.embed(S, idm));
-  return saturate(Ideal(S, gens), Ideal(S, sat), saturation);
+  return saturate(Ideal(S, gens), Ideal(S, sat), grouped ? "exact" : saturation);
 }
 
 Ideal conormal(const Ideal& I, const RingPtr& S, const std::string& saturation) {
@@ -220,7 +223,7 @@ namespace {
 // Eliminate the derivative columns over QQ, carrying each column's direction
 // with it. A dependency has the form e_j + sum_p a_p e_p, with p among the
 // pivot columns. Thus x_p - sum_j a_p x_j are coordinates on the quotient.
-std::optional<Stratification> affine_cylinder(const Ideal& I, const WhitneyOptions& opts) {
+std::optional<Stratification> affine_cylinder(const Ideal& I, const WhitneyOptions& opts, bool defer_primes) {
   const auto& R = I.ring();
   const int n = R->nvars();
   if (n < 2 || I.gens().empty()) return {};
@@ -286,7 +289,7 @@ std::optional<Stratification> affine_cylinder(const Ideal& I, const WhitneyOptio
   for (const auto& f : I.gens()) equations.push_back(f.substitute(base, section));
   Ideal base_ideal(base, std::move(equations));
   if (opts.level >= 0) base_opts.level = std::min(opts.level, base_ideal.dim());
-  auto reduced = whitney_stratify(base_ideal, base_opts);
+  auto reduced = stratify_impl(base_ideal, base_opts, defer_primes);
   Stratification out{R, false, {}};
   if (reduced.strata.empty()) return out;  // empty variety
   for (int d = 0; d < shift; ++d) out.strata[d];
@@ -299,6 +302,24 @@ std::optional<Stratification> affine_cylinder(const Ideal& I, const WhitneyOptio
     }
   }
   return out;
+}
+
+// In dimension zero adjoining a squarefree annihilator for each coordinate
+// gives a quotient of a finite etale QQ-algebra, hence a reduced algebra.
+Ideal reduced_points(const Ideal& I) {
+  Ideal result = I;
+  auto vars = identity(I.ring()->nvars());
+  for (int v : vars) {
+    auto others = vars;
+    others.erase(others.begin() + v);
+    auto univariate = eliminate(I, others);
+    const auto& basis = univariate.gb().polys;
+    if (basis.size() != 1 || basis.front().is_constant())
+      throw std::logic_error("expected a nonconstant coordinate annihilator");
+    result = result + radical_part(basis.front());
+  }
+  result.canonicalise();
+  return result;
 }
 
 struct Store {
@@ -326,13 +347,13 @@ struct Store {
 
 }  // namespace
 
-Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
+static Stratification stratify_impl(const Ideal& I0, const WhitneyOptions& opts, bool defer_primes) {
   auto log = [&](const std::string& s) {
     if (opts.log) opts.log(s);
   };
   const RingPtr& R = I0.ring();
   if (!opts.projective) {
-    if (auto cylinder = affine_cylinder(I0, opts)) return std::move(*cylinder);
+    if (auto cylinder = affine_cylinder(I0, opts, defer_primes)) return std::move(*cylinder);
   }
   const int nv = R->nvars();
   const int n = opts.projective ? nv - 1 : nv;
@@ -345,8 +366,19 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
   Stratification out{R, opts.projective, {}};
   if (dimI < 0) return out;
 
-  log("decompose X");
-  auto comps = minimal_primes(I0);
+  // Height equal to the number of equations implies a complete intersection.
+  // It is unmixed. Generic smoothness then establishes reducedness (R0 + S1).
+  if (defer_primes) log("check top");
+  Ideal candidate = I0;
+  if (defer_primes && I0.gens().size() == 1)
+    candidate = Ideal(R, {radical_part(I0.gens().front())});
+  std::optional<Ideal> grouped_jacobian;
+  if (defer_primes && candidate.codim() == static_cast<int>(candidate.gens().size())) {
+    Ideal J = jacobian_ideal(candidate);
+    if (J.dim() < candidate.dim()) grouped_jacobian = std::move(J);
+  }
+  log(grouped_jacobian ? "group top" : "decompose X");
+  auto comps = grouped_jacobian ? std::vector<Ideal>{candidate} : minimal_primes(I0);
   bool equidim = true;
   for (auto& P : comps) {
     st.add(P);  // each component at its own dimension
@@ -366,21 +398,33 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
       for (size_t j = i + 1; j < comps.size(); ++j)
         for (auto& th : minimal_primes(comps[i] + comps[j])) st.add(th);
 
+  auto lower_parts = [&](const Ideal& K) -> std::vector<Ideal> {
+    if (defer_primes && K.is_unit()) return {};
+    if (defer_primes && std::all_of(K.gb().polys.begin(), K.gb().polys.end(),
+                                  [](const Poly& p) { return p.total_degree() <= 1; }))
+      return {K};  // A proper affine-linear ideal is already prime.
+    if (defer_primes && !opts.projective && K.dim() == 0) {
+      log("group points");
+      return {reduced_points(K)};
+    }
+    if (defer_primes) log("lower prime fallback");
+    return minimal_primes(K);
+  };
+
   if (equidim) {
-    // The Jacobian criterion applies to the reduced variety. All later
-    // Jacobians are already taken on the individual prime components.
+    // The Jacobian criterion applies to the reduced equidimensional variety.
     if (comps.empty()) return finish();
     Ideal reduced = comps.front();
     for (size_t i = 1; i < comps.size(); ++i) reduced = intersect(reduced, comps[i]);
-    Ideal J = jacobian_ideal(reduced);
+    Ideal J = grouped_jacobian ? *grouped_jacobian : jacobian_ideal(reduced);
     if (dimI < 2) {
-      for (auto& K : minimal_primes(J))
+      for (auto& K : lower_parts(J))
         if (st.dim_of(K) < dimI) st.add(K);
       return finish();
     }
     const int codimJ = J.codim();
     if (codimJ == n)
-      for (auto& K : minimal_primes(J)) st.add(K);
+      for (auto& K : lower_parts(J)) st.add(K);
     if (codimJ >= n) return finish();
   }
 
@@ -394,9 +438,10 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
       for (size_t j = i + 1; j < cur.size(); ++j)
         for (auto& th : minimal_primes(cur[i] + cur[j])) st.add(th);
     for (auto& Ia : cur) {
-      Ideal Ja = jacobian_ideal(Ia);
+      bool grouped = grouped_jacobian.has_value() && a == 0;
+      Ideal Ja = grouped ? *grouped_jacobian : jacobian_ideal(Ia);
       const int mu = st.dim_of(Ja);  // dim of Sing(Ia); negative if smooth
-      auto singular = minimal_primes(Ja);
+      auto singular = lower_parts(Ja);
       for (auto& K : singular)
         if (st.dim_of(K) < k) st.add(K);
       if (opts.method == "polar") {
@@ -413,22 +458,50 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
       if (mu > dimI - level) {
         log("  conormal of a " + std::to_string(k) + "-dimensional piece");
         auto chart = opts.saturation == "random" ? chart_form(Ia, singular) : std::nullopt;
+        // On a pure reduced union the open chart must meet every component.
+        if (grouped && chart && (Ia + *chart).dim() >= Ia.dim()) chart.reset();
         if (chart) log("  conormal chart: " + chart->str());
-        Ideal C = conormal_impl(Ia, S, opts.saturation == "random" ? "minor" : opts.saturation, chart);
+        const auto saturation = opts.saturation == "random" ? "minor" : opts.saturation;
+        Ideal C = conormal_impl(Ia, S, saturation, chart, grouped);
+        if (defer_primes) log("conormal complete");
         for (int ell = mu; ell >= 0; --ell) {
+          // Points have no smaller exceptional locus to add to a filtration.
+          if (defer_primes && ell == 0) continue;
           // iterate by index: entries appended at dimension < ell do not affect this list
           for (size_t zi = 0; zi < st.V[ell].size(); ++zi) {
             Ideal Z = st.V[ell][zi];
             if (!Z.contains(Ia)) continue;  // need V(Z) ⊆ V(Ia)
             Ideal W = whitney_points(Z, C, R);
             if (W.is_unit()) continue;
-            for (auto& K : minimal_primes(W)) st.add(K);
+            for (auto& K : lower_parts(W)) st.add(K);
           }
         }
       }
     }
   }
   return finish();
+}
+
+Stratification whitney_stratify(const Ideal& I, const WhitneyOptions& opts) {
+  return stratify_impl(I, opts, false);
+}
+
+std::map<int, Ideal> whitney_filtration(const Ideal& I, bool projective, bool defer_primes,
+                                        std::function<void(const std::string&)> log) {
+  WhitneyOptions opts;
+  opts.projective = projective;
+  opts.log = std::move(log);
+  auto result = stratify_impl(I, opts, defer_primes);
+  std::map<int, Ideal> filtration;
+  Ideal acc(I.ring(), {Poly::constant(I.ring(), 1)});
+  for (const auto& [d, parts] : result.strata) {
+    for (const auto& part : parts) {
+      if (acc.contains(part)) acc = part;
+      else if (!part.contains(acc)) acc = intersect(acc, part);
+    }
+    filtration.emplace(d, acc);
+  }
+  return filtration;
 }
 
 }  // namespace helmer

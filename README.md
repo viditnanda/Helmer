@@ -28,6 +28,14 @@ valid stratification (some strata may be empty or drop dimension), see [HLN].
 nonradical. It uses the minimal primes for the component strata and their
 intersection for the singular locus of an equidimensional union.
 
+The experimental `whitney_filtration(I, projective=False)` returns a dictionary
+of ideals. The zero set of entry `d` is the union of all stratum closures of
+dimension at most `d`. The algorithm can keep a reduced complete intersection
+together at entry and carry an affine finite singular locus as one reduced
+ideal. It falls back to prime decomposition where needed. Pass `defer=False`
+to construct the filtration from the usual prime closures. The two methods
+can produce different Whitney refinements.
+
 On affine inputs Helmer first finds constant directions whose directional
 derivative annihilates every supplied generator. It stratifies a complementary
 linear slice, pulls its stratum closures back to the original coordinates and

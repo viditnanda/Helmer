@@ -304,11 +304,11 @@ std::optional<MembershipCertificate> certify_membership_bounded(
       next_try = k + std::max(2L, k / 4);
 
       bool ok = true;
-      for (long i = 0; i < r && ok; ++i) ok = fmpq_reconstruct_fmpz(&q[i].v, &y[i].v, &pk.v);
-      if (!ok) {
-        if (exact) break;
-        continue;
+      for (long i = 0; i < r && ok; ++i) {
+        if (exact) fmpq_set_fmpz(&q[i].v, &y[i].v);
+        else ok = fmpq_reconstruct_fmpz(&q[i].v, &y[i].v, &pk.v);
       }
+      if (!ok) continue;
       // x = D y / d_h
       std::vector<std::vector<Exp>> ce(m);
       std::vector<std::vector<fmpq*>> cc(m);

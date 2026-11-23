@@ -9,6 +9,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <numeric>
+#include <set>
 #include <unordered_map>
 
 extern "C" {
@@ -202,6 +204,59 @@ struct Accum {
   }
 };
 
+// Sparse division in the same block DRL order as msolve. The exponents in
+// IntInput and Accum are already permuted into that order.
+using DivisionMono = std::vector<int64_t>;
+struct LeadFirst {
+  int split;
+  bool operator()(const DivisionMono& a, const DivisionMono& b) const {
+    size_t start = 0;
+    for (size_t end : {static_cast<size_t>(split), a.size()}) {
+      auto da = std::accumulate(a.begin() + start, a.begin() + end, int64_t{0});
+      auto db = std::accumulate(b.begin() + start, b.begin() + end, int64_t{0});
+      if (da != db) return da > db;
+      for (size_t j = end; j > start; --j)
+        if (a[j - 1] != b[j - 1]) return a[j - 1] < b[j - 1];
+      start = end;
+    }
+    return false;
+  }
+};
+
+bool reduces_input(const IntInput& in, int split, const Accum& basis) {
+  size_t term = 0;
+  DivisionMono shift(in.nvars), product(in.nvars);
+  for (int length : in.lens) {
+    std::map<DivisionMono, Q, LeadFirst> remainder(LeadFirst{split});
+    for (int j = 0; j < length; ++j, ++term) {
+      auto exp = in.exps.begin() + term * in.nvars;
+      fmpq_set_fmpz(&remainder[DivisionMono(exp, exp + in.nvars)].v, &in.coeffs[term].v);
+    }
+    while (!remainder.empty()) {
+      const DivisionMono& lead = remainder.begin()->first;
+      size_t g = 0;
+      for (; g < basis.monos.size(); ++g) {
+        const Mono& divisor = basis.monos[g].front();
+        if (std::equal(divisor.begin(), divisor.end(), lead.begin(), std::less_equal<>()))
+          break;
+      }
+      if (g == basis.monos.size()) return false;
+      const auto& terms = basis.monos[g];
+      for (int v = 0; v < in.nvars; ++v) shift[v] = lead[v] - terms.front()[v];
+      Q coeff = remainder.begin()->second;
+      remainder.erase(remainder.begin());  // reconstructed basis elements are monic
+      for (size_t j = 1; j < terms.size(); ++j) {
+        if (fmpq_is_zero(&basis.cand[g][j].v)) continue;
+        for (int v = 0; v < in.nvars; ++v) product[v] = shift[v] + terms[j][v];
+        auto it = remainder.try_emplace(product).first;
+        fmpq_submul(&it->second.v, &coeff.v, &basis.cand[g][j].v);
+        if (fmpq_is_zero(&it->second.v)) remainder.erase(it);
+      }
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 GB groebner(const RingPtr& R, const std::vector<Poly>& F, const std::vector<int>& perm, int ebl) {
@@ -241,10 +296,12 @@ GB groebner(const RingPtr& R, const std::vector<Poly>& F, const std::vector<int>
   }
 
   std::map<std::vector<int32_t>, Accum> groups;
-  ulong p = (1UL << 31);
+  std::set<ulong> used;
+  std::uniform_int_distribution<ulong> odd(1UL << 29, (1UL << 30) - 1);
   const Accum* winner = nullptr;
   for (int it = 0; it < gb_options().max_primes && !winner; ++it) {
-    do { --p; } while (!n_is_prime(p));
+    ulong p;
+    do { p = 2 * odd(gb_prime_rng()) + 1; } while (!n_is_prime(p) || !used.insert(p).second);
     bool bad = false;  // p must not kill any input coefficient
     for (auto& c : in.coeffs)
       if (fmpz_fdiv_ui(&c.v, p) == 0) { bad = true; break; }
@@ -252,7 +309,7 @@ GB groebner(const RingPtr& R, const std::vector<Poly>& F, const std::vector<int>
     ModResult r;
     if (!run_f4(in, static_cast<uint32_t>(p), ebl, r)) { gb_stats().unlucky++; continue; }
     Accum& A = groups[r.signature];
-    if (A.has_candidate && A.confirms(r, static_cast<uint32_t>(p))) {
+    if (A.has_candidate && A.confirms(r, static_cast<uint32_t>(p)) && reduces_input(in, ebl, A)) {
       winner = &A;
       break;
     }

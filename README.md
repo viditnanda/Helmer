@@ -61,8 +61,8 @@ by minimisation.
 
 * **Gröbner bases over ℚ.** msolve's F4 modulo 31-bit primes, Chinese remaindering
   and rational reconstruction; a reconstruction is accepted only after an
-  independent prime confirms it, and primes whose leading-monomial pattern differs
-  from the majority are discarded as unlucky. Only two monomial orders are ever
+  fresh prime confirms it and every input generator reduces to zero over ℚ.
+  Each call samples distinct random primes and groups results by leading monomials. Only two monomial orders are ever
   needed (DRL, and a two-block elimination order), both native to msolve.
 * **Minimal primes.** Factorisation splitting, then a GTZ-style reduction: for a
   maximal independent set *u*, a block basis gives `h` with
@@ -82,7 +82,8 @@ by minimisation.
 
 The only Monte-Carlo step is the modular lift of Gröbner bases over ℚ (as in msolve
 itself and Macaulay2's modular methods): a wrong answer requires a reconstruction that
-is confirmed by an independent random-looking 31-bit prime. The prime certificate in
+is confirmed by a fresh 31-bit prime and passes the generator-reduction check.
+The latter establishes that the reconstructed ideal contains the input ideal. The prime certificate in
 `minimal_primes` and the conormal saturation are exact. A fully certified mode
 (verifying the lifted basis over ℚ) is on the roadmap.
 
@@ -197,8 +198,9 @@ Wall-clock times on the same 2-core machine (M2 `cpuTime`; Helmer via Python):
 * In `mapStratify`, the M2 code pulls Whitney points of `Y` back to `X` with the
   *forward* elimination (`elimIm`), which is only correct for coordinate projections;
   Helmer uses the preimage `f⁻¹(K) ∩ X` throughout.
-* Random choices (independent sets) are made deterministically; `helmer.set_seed`
-  controls the remaining randomness.
+* The Gröbner prime stream is seeded from system randomness. For reproducible
+  runs, `helmer.set_seed` seeds both the prime stream and the separate stream
+  for geometric choices.
 
 ## Building
 

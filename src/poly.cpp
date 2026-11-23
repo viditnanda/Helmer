@@ -246,7 +246,14 @@ std::mt19937_64& rng() {
   static std::mt19937_64 g(0x48656c6d6572ULL);  // "Helmer"
   return g;
 }
-void set_seed(uint64_t s) { rng().seed(s); }
+std::mt19937_64& gb_prime_rng() {
+  static std::mt19937_64 g(std::random_device{}());
+  return g;
+}
+void set_seed(uint64_t s) {
+  rng().seed(s);
+  gb_prime_rng().seed(s);
+}
 long random_coeff(long bound) {
   std::uniform_int_distribution<long> d(1, bound);
   long c = d(rng());

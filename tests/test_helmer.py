@@ -143,3 +143,17 @@ def test_polar_refines_minimal(name):
     P = helmer.whitney_stratify(helmer.Ideal(R, ex["gens"]), method="polar", polar_bound=100)
     ref = as_strata(R, ex.get("m2_minimal_strata", ex["m2_HM_strata"]))
     assert contains_skeleta(P, ref)
+
+
+@pytest.mark.parametrize("p,q", [
+    (2147483647, 2147483629),  # first two primes on the old fixed schedule
+    (1884583903, 2089177841),  # first two with seed 42 on libstdc++
+])
+def test_coincident_modular_generators(p, q):
+    helmer.set_seed(42)
+    R = helmer.Ring("x,y")
+    I = helmer.Ideal(R, ["x+y", f"x+{p*q+1}*y"])
+    assert I.dim() == 0
+    assert I == helmer.Ideal(R, ["x", "y"])
+    helmer.set_seed(42)
+    assert helmer.eliminate(I, ["x"]) == helmer.Ideal(R, ["y"])

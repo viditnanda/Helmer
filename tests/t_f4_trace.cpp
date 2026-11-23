@@ -19,14 +19,18 @@ static std::vector<ulong> primes(unsigned seed) {
   return result;
 }
 
-int main() {
-  auto R = Ring::make({"x", "y", "z", "w"});
+static int check_traces() {
+  auto R = Ring::make({"x", "y", "z", "w", "u"});
   auto ps = primes(42);
-  for (int unlucky : {0, 1, 2}) {
+  for (int scenario : {0, 1, 2, 3}) {
+    int unlucky = scenario == 3 ? 2 : scenario;
     // At p, the S-pair loses the y^3 pivot: a+b^2 = p.
     auto b = Poly(R, "23456789012345678912343");
     auto a = Poly::constant(R, unlucky ? ps[unlucky] : 1) - b*b;
-    std::vector<Poly> input = {Poly(R, "x^2") + a * Poly(R, "y^2"),
+    // With u^2 present the row survives at the bad prime, with leading
+    // monomial y*u^2. Without it the row reduces to zero.
+    auto first = Poly(R, scenario == 3 ? "x^2+u^2" : "x^2");
+    std::vector<Poly> input = {first + a * Poly(R, "y^2"),
         Poly(R, "x*y") + b * Poly(R, "y^2"), Poly(R, "z-1234567891231451235123"),
         Poly(R, "w-498537293872395723837491")};
     gb_options().trace_min_ms = -1;
@@ -47,4 +51,11 @@ int main() {
   groebner_drl(R, {Poly(R, "x^2+y"), Poly(R, "x*y+1")});
   if (gb_stats().trace_learns != before.trace_learns) return 1;
   std::cout << "F4 trace selection and recovery passed\n";
+  return 0;
+}
+
+int main() {
+  int result = check_traces();
+  flint_cleanup_master();
+  return result;
 }

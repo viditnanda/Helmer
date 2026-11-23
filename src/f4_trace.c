@@ -1,6 +1,6 @@
-// Adapter to the trace interface in msolve 0.7.5.
+// Adapter to the trace interface in the pinned msolve backend.
 #include "f4_trace.h"
-#include <msolve/neogb/libneogb.h>
+#include "libneogb.h"
 
 struct HelmerF4Trace {
   bs_t* input;

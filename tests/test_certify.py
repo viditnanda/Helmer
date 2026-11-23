@@ -112,3 +112,14 @@ def test_exact_padic_solution(generator, target):
     cert = helmer.certify_membership(I, target, [])
     assert cert is not None
     assert helmer.verify_membership(I, target, cert["cofactors"])
+
+
+@pytest.mark.parametrize("target", ["x", "43486241*x"])
+def test_retry_unlucky_membership_prime(target):
+    # At the first FLINT 3.1 lifting prime the augmented matrix either has
+    # its only pivot in the target column or is identically zero.
+    R = helmer.Ring("x")
+    I = helmer.Ideal(R, ["43486241*x"])
+    cert = helmer.certify_membership(I, target, [], max_unknowns=1)
+    assert cert is not None
+    assert helmer.verify_membership(I, target, cert["cofactors"])

@@ -215,9 +215,8 @@ std::optional<MembershipCertificate> certify_membership_bounded(
 
   // 1. One elimination of the full system modulo a ~26-bit prime gives the rank, the
   //    pivot columns (the column rank profile, i.e. the RREF pivots) and r independent
-  //    rows, or shows the system inconsistent. Over QQ a consistent system stays
-  //    consistent modulo every prime not dividing a denominator of the canonical
-  //    solution, so an inconsistency is taken as "no solution with these bounds".
+  //    rows. A prime dividing a solution denominator can make a rationally
+  //    consistent system inconsistent modulo p. Retry within the prime budget.
   // 2. The r x r subsystem on those rows and columns is nonsingular over QQ; its
   //    solution (free variables zero) is found by Dixon's p-adic lifting from one LU
   //    factorisation modulo p, stopping as soon as rational reconstruction gives
@@ -249,7 +248,7 @@ std::optional<MembershipCertificate> certify_membership_bounded(
         piv.push_back(c);
       }
       nmod_mat_clear(M);
-      if (incons || r == 0) return std::nullopt;
+      if (incons || r == 0) continue;
       sel_rows.assign(P.begin(), P.begin() + r);
     }
 

@@ -28,6 +28,15 @@ valid stratification (some strata may be empty or drop dimension), see [HLN].
 nonradical. It uses the minimal primes for the component strata and their
 intersection for the singular locus of an equidimensional union.
 
+The default Whitney conormal computation first looks for an affine linear
+form vanishing on every singular component but nonzero on the parent
+component. On the dense smooth open where this form is invertible, the
+conormal equations already define the conormal bundle. Helmer saturates by
+that form using homogenization and graded reverse lexicographic order.
+It prefers a coordinate (in reverse input order), then a sparse linear form.
+If the singular locus spans the parent’s affine hull, it uses a Jacobian
+minor. Passing `saturation="minor"` selects the minor method explicitly.
+
 ## What is implemented
 
 | Macaulay2 (`WhitneyStratifications`)   | Helmer                                   | Notes |
@@ -62,7 +71,8 @@ by minimisation.
   polynomial of a linear form (FLINT multivariate factorisation over ℚ). Each candidate
   is **certified prime** by checking `dim_{k(u)} k(u)[x∖u]/P = deg μᵢ`; if a candidate
   fails, the ideal is made radical (Seidenberg) and/or the linear form is re-drawn.
-* **Conormal varieties.** For a prime `I` of codimension *c*, Helmer saturates by a
+* **Conormal varieties.** When no hyperplane chart is available for a prime `I`
+  of codimension *c*, Helmer saturates by a
   *single* sparse *c*-minor `g ∉ I` instead of the whole minor ideal. Over the dense
   open set `g ≠ 0` the conormal is smooth and reduced, so `(I + K) : g^∞` is exactly
   `I(Con X)`. This is deterministic and is the main reason for the speed-up on larger
@@ -135,7 +145,7 @@ the next step.
 
 In Macaulay2 the polar route is far faster than the conormal route (X₁ below: 2.7 s vs
 210 s), because M2 saturates the conormal ideal by the entire ideal of minors. Helmer
-saturates by one sparse minor instead (exact for prime input, see above), which removes
+uses a hyperplane chart or one sparse minor (exact for prime input, see above), which removes
 that bottleneck. As a result the conormal route is the default: on every benchmark so far it
 is at least as fast as the polar route, and it is deterministic.
 
@@ -154,9 +164,10 @@ stratification computed by M2's `minCoarsenWS`. `polar_bound` (default 1000) set
 size of the random coefficients: smaller is faster (X₂: 5.0 s at bound 5) but raises
 the small probability of an unlucky projection.
 
-Known hard cases for both systems: the Briançon–Speder family
-`x⁵ + y⁷z + z¹⁵ + t·xy⁶` and a quartic hypersurface in ℂ⁵. A single Gröbner basis
-(the conormal saturation) dominates; this is where the remaining speed has to come from.
+The Briançon–Speder family `x⁵ + y⁷z + z¹⁵ + t·xy⁶` uses the chart
+`z ≠ 0`. Run `python bench/run_helmer.py briancon_speder` on an installed
+build to time the full stratification. The degree-nine analogue is available
+as `briancon_speder_small`.
 
 ## Validation and speed
 

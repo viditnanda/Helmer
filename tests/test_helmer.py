@@ -157,3 +157,66 @@ def test_coincident_modular_generators(p, q):
     assert I == helmer.Ideal(R, ["x", "y"])
     helmer.set_seed(42)
     assert helmer.eliminate(I, ["x"]) == helmer.Ideal(R, ["y"])
+
+
+@pytest.mark.parametrize("u", ["x", "(x+t)"])
+def test_affine_cylinder_quartic(u):
+    R = helmer.Ring("x,y,z,w,t")
+    f = f"{u}^4+y^3*(z+t)+w^4"
+    messages = []
+    strata = helmer.whitney_stratify(helmer.Ideal(R, [f]), log=messages.append)
+    assert "affine cylinder: removing 1 free direction" in messages
+    assert set(strata) == set(range(5))
+    assert same(strata, as_strata(R, [(4, f), (2, f"{u},y,w"), (1, f"{u},y,w,z+t")]))
+
+
+@pytest.mark.parametrize("level", [-1, 0])
+@pytest.mark.parametrize("method", ["conormal", "polar"])
+def test_cylinder_rational_shear_and_repeated_factors(level, method):
+    R = helmer.Ring("x,y,z,w")
+    u, v = "(x+2/3*z-w)", "(y-5/2*z)"
+    I = helmer.Ideal(R, [f"({u}*{v})^2"])
+    strata = helmer.whitney_stratify(I, level=level, method=method)
+    expected = [(3, u), (3, v)]
+    if level != 0:
+        expected.append((2, f"{u},{v}"))
+    assert set(strata) == set(range(4))
+    assert same(strata, as_strata(R, expected))
+
+
+def test_cylinder_univariate_base():
+    R = helmer.Ring("x,y,z")
+    f = "(y+z-1)*(y+z+1)"
+    assert same(helmer.whitney_stratify(helmer.Ideal(R, [f])),
+                as_strata(R, [(2, "y+z-1"), (2, "y+z+1")]))
+
+
+@pytest.mark.parametrize("seed", [3, 11, 29, 47])
+def test_common_translation_directions_match_direct_stratification(seed):
+    import random
+    rng = random.Random(seed)
+    R = helmer.Ring("x,y,z,s,t")
+    # A rational shear of a nodal curve times an affine plane.
+    def form(variable):
+        a, b = rng.sample(range(1, 13), 2)
+        return f"({variable}+{a}/3*s-{b}/5*t)"
+    u, v, w = map(form, ("x", "y", "z"))
+    gens = [f"{u}*{v}", w]
+    messages = []
+    result = helmer.whitney_stratify(helmer.Ideal(R, gens), log=messages.append)
+    assert "affine cylinder: removing 2 free directions" in messages
+    assert same(result, as_strata(R, [(3, f"{u},{w}"), (3, f"{v},{w}"),
+                                      (2, f"{u},{v},{w}")]))
+    # Redundant equations preserve the ideal and force the ambient calculation:
+    # the derivatives of s*w and t*w in a common translation direction detect
+    # its s and t coordinates, respectively.
+    direct_log = []
+    direct = helmer.whitney_stratify(helmer.Ideal(R, gens + [f"s*{w}", f"t*{w}"]),
+                                    log=direct_log.append)
+    assert not any("affine cylinder" in m for m in direct_log)
+    assert same(result, direct)
+
+
+def test_inconsistent_cylinder_has_no_strata():
+    R = helmer.Ring("x,y,z")
+    assert helmer.whitney_stratify(helmer.Ideal(R, ["x-y", "x-y-1"])) == {}

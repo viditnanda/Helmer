@@ -217,6 +217,90 @@ Ideal whitney_points(const Ideal& Z, const Ideal& ConX, const RingPtr& R) {
 
 namespace {
 
+// Eliminate the derivative columns over QQ, carrying each column's direction
+// with it. A dependency has the form e_j + sum_p a_p e_p, with p among the
+// pivot columns. Thus x_p - sum_j a_p x_j are coordinates on the quotient.
+std::optional<Stratification> affine_cylinder(const Ideal& I, const WhitneyOptions& opts) {
+  const auto& R = I.ring();
+  const int n = R->nvars();
+  if (n < 2 || I.gens().empty()) return {};
+
+  // The row index includes the generator: equal monomials in different
+  // equations are independent constraints on a translation direction.
+  struct Column { std::vector<Poly> derivatives; Poly direction; };
+  using Row = std::pair<size_t, std::vector<long>>;
+  std::map<Row, Column> echelon;
+  std::vector<int> pivots;
+  std::vector<std::pair<int, Poly>> kernel;
+  for (int j = 0; j < n; ++j) {
+    Column col{{}, Poly::var(R, j)};
+    for (const auto& f : I.gens()) col.derivatives.push_back(f.derivative(j));
+    size_t i = 0;
+    while (i < col.derivatives.size()) {
+      const Poly& d = col.derivatives[i];
+      if (d.is_zero()) {
+        ++i;
+        continue;
+      }
+      Row row{i, d.term_exp(0)};
+      fmpq_t lc;
+      fmpq_init(lc);
+      fmpq_mpoly_get_term_coeff_fmpq(lc, d.raw(), 0, R->ctx());
+      Poly coefficient(R);
+      fmpq_mpoly_set_fmpq(coefficient.raw(), lc, R->ctx());
+      fmpq_clear(lc);
+      auto it = echelon.find(row);
+      if (it == echelon.end()) {
+        for (size_t k = i; k < col.derivatives.size(); ++k)
+          col.derivatives[k] = divexact(col.derivatives[k], coefficient);
+        col.direction = divexact(col.direction, coefficient);
+        echelon.emplace(std::move(row), std::move(col));
+        pivots.push_back(j);
+        break;
+      }
+      for (size_t k = i; k < col.derivatives.size(); ++k)
+        col.derivatives[k] = col.derivatives[k] - coefficient * it->second.derivatives[k];
+      col.direction = col.direction - coefficient * it->second.direction;
+    }
+    if (i == I.gens().size()) kernel.emplace_back(j, std::move(col.direction));
+  }
+  if (pivots.empty() || kernel.empty()) return {};
+
+  std::vector<std::string> names;
+  for (int p : pivots) names.push_back(R->names()[p]);
+  auto base = Ring::make(std::move(names));
+  std::vector<Poly> section(n, Poly(base)), quotient;
+  for (int i = 0; i < base->nvars(); ++i) {
+    int p = pivots[i];
+    section[p] = Poly::var(base, i);
+    Poly form = Poly::var(R, p);
+    for (const auto& [j, v] : kernel)
+      form = form - v.derivative(p) * Poly::var(R, j);
+    quotient.push_back(std::move(form));
+  }
+
+  const int shift = n - base->nvars();
+  if (opts.log) opts.log("affine cylinder: removing " + std::to_string(shift) + (shift == 1 ? " free direction" : " free directions"));
+  WhitneyOptions base_opts = opts;
+  std::vector<Poly> equations;
+  for (const auto& f : I.gens()) equations.push_back(f.substitute(base, section));
+  Ideal base_ideal(base, std::move(equations));
+  if (opts.level >= 0) base_opts.level = std::min(opts.level, base_ideal.dim());
+  auto reduced = whitney_stratify(base_ideal, base_opts);
+  Stratification out{R, false, {}};
+  if (reduced.strata.empty()) return out;  // empty variety
+  for (int d = 0; d < shift; ++d) out.strata[d];
+  for (const auto& [d, pieces] : reduced.strata) {
+    auto& lifted = out.strata[d + shift];
+    for (const auto& piece : pieces) {
+      std::vector<Poly> gens;
+      for (const auto& g : piece.gens()) gens.push_back(g.substitute(R, quotient));
+      lifted.emplace_back(R, std::move(gens));
+    }
+  }
+  return out;
+}
+
 struct Store {
   int n_eff;
   std::map<int, std::vector<Ideal>> V;
@@ -247,6 +331,9 @@ Stratification whitney_stratify(const Ideal& I0, const WhitneyOptions& opts) {
     if (opts.log) opts.log(s);
   };
   const RingPtr& R = I0.ring();
+  if (!opts.projective) {
+    if (auto cylinder = affine_cylinder(I0, opts)) return std::move(*cylinder);
+  }
   const int nv = R->nvars();
   const int n = opts.projective ? nv - 1 : nv;
   Store st{n, {}, {}};

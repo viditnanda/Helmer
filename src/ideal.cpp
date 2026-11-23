@@ -260,7 +260,8 @@ Ideal saturate(const Ideal& I, const Poly& f) {
   auto m = identity_map(R->nvars());
   std::vector<Poly> g;
   for (auto& p : I.gens()) g.push_back(p.embed(S, m));
-  g.push_back(Poly::var(S, t) * f.embed(S, m) - Poly::constant(S, 1));
+  // Localising at f or its squarefree part gives the same saturation.
+  g.push_back(Poly::var(S, t) * radical_part(f).embed(S, m) - Poly::constant(S, 1));
   std::vector<int> perm{t};
   for (int i = 0; i < R->nvars(); ++i) perm.push_back(i);
   GB G = groebner(S, g, perm, 1);

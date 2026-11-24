@@ -1,0 +1,27 @@
+diff --git a/src/neogb/f4.c b/src/neogb/f4.c
+index dd084cf..d6b7e26 100644
+--- a/src/neogb/f4.c
++++ b/src/neogb/f4.c
+@@ -527,6 +527,9 @@ static int32_t compute_new_elements(
+                 fprintf(ERRSTREAM, "Wrong leading term for new element %u/%u, bad prime.",
+                         i, mat->np);
+                 }
++                /* The rows have moved from mat into the basis, but the
++                 * normal increment below is skipped on rejection. */
++                bs->ld += md->np;
+                 *errp = 2;
+                 return 1;
+             }
+diff --git a/src/neogb/hash.c b/src/neogb/hash.c
+index a5e34db..309c9eb 100644
+--- a/src/neogb/hash.c
++++ b/src/neogb/hash.c
+@@ -2225,6 +2225,8 @@ static inline hm_t *multiplied_poly_to_matrix_row(
+     return row;
+   }
+   hm_t *row = (hm_t *)malloc((uint64_t)(poly[LENGTH]+OFFSET) * sizeof(hm_t));
++  /* Trace-cache compression serializes the entire header. */
++  memset(row, 0, OFFSET * sizeof(*row));
+   row[COEFFS]   = poly[COEFFS];
+   row[PRELOOP]  = poly[PRELOOP];
+   row[LENGTH]   = poly[LENGTH];

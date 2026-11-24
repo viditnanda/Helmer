@@ -257,6 +257,9 @@ PYBIND11_MODULE(_helmer, m) {
     py::dict d;
     d["gb_calls"] = gb_stats().calls;
     d["f4_runs"] = gb_stats().f4_runs;
+    d["trace_learns"] = gb_stats().trace_learns;
+    d["trace_replays"] = gb_stats().trace_replays;
+    d["trace_fallbacks"] = gb_stats().trace_fallbacks;
     d["unlucky_primes"] = gb_stats().unlucky;
     d["gb_seconds"] = gb_stats().seconds;
     d["prime_calls"] = prime_stats().calls;

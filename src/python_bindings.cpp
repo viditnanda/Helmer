@@ -246,6 +246,9 @@ PYBIND11_MODULE(_helmer, m) {
      "prime Z, by dimension 0..dim Z (the last entry is e_X(Z)); 0 where X is not in the "
      "polar variety. Teissier: Whitney's conditions hold for (Z_reg, Y) at general points "
      "of Y iff this sequence is constant along Y.");
+  m.def("whitney_filtration", &whitney_filtration, py::arg("ideal"), py::arg("projective") = false,
+        py::arg("defer") = true, py::arg("log") = nullptr,
+        "Vanishing ideals of the cumulative closed dimension filtration.");
   m.def("polar_varieties", [](const Ideal& I, long bound) {
     return polar_varieties(I, jacobian_ideal(I), bound);
   }, py::arg("ideal"), py::arg("bound") = 1000,

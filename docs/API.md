@@ -41,6 +41,17 @@ same ideals give a valid stratification of the real points (strata may be empty,
 * `minimal=True`: coarsen the result to the minimal Whitney stratification (`min_coarsen`, below).
 * `log`: a function called with progress messages, e.g. `log=print`.
 
+```python
+whitney_filtration(ideal, projective=False, defer=True, log=None) -> {dim: Ideal}
+```
+
+The closed dimension filtration of a Whitney stratification: V(result[d]) is the union of the stratum closures
+of dimension ≤ d (each ideal radical). With `defer=True` it avoids prime decomposition where it can (reduced
+complete intersections, finite loci, curves along which affine-linear symmetries move every point); the
+result is a valid Whitney filtration, not necessarily minimal, and not decomposed into primes. `defer=False`
+builds it from the prime-by-prime stratification. C++: `std::map<int, Ideal> whitney_filtration(const Ideal&,
+bool projective, bool defer_primes, log)`.
+
 C++: `Stratification whitney_stratify(const Ideal&, const WhitneyOptions& = {})`, with the same options as
 fields of `WhitneyOptions` and the result in `Stratification::strata` (`std::map<int, std::vector<Ideal>>`).
 

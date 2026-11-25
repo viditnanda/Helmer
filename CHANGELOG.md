@@ -11,6 +11,11 @@
   through one general F_p-point (Monte Carlo, two agreeing runs): `multiplicity` (Samuel
   multiplicity, any X ⊆ Y; no Segre classes needed), `polar_sequence`, `polar_multiplicity`,
   `in_singular_locus`, and `contained` (V(X) ⊆ V(Y)).
+* `whitney_filtration`: the closed dimension filtration, deferring prime decomposition
+  (reduced complete intersections kept whole by Serre's criterion, finite loci made radical
+  by Seidenberg's lemma, Whitney failures along curves bounded by affine-linear symmetries).
+  Mechanisms such as the pinned five-bar and the rotating four-bar go from minutes to
+  milliseconds. Chart saturations also prune their bases to minimal leading monomials.
 * Internals: a mod-p layer over msolve's F4 and FLINT's `nmod_mpoly` (`helmer/modp.hpp`).
 
 ## 1.0.0 (2026-11-25)

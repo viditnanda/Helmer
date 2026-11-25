@@ -48,7 +48,7 @@ helmer::Stratification S = helmer::whitney_stratify(X);   // S.strata[d]: prime 
 pip install helmer-strat
 ```
 
-Binary wheels for Linux (x86-64) and macOS (Apple silicon and Intel), CPython 3.9–3.13, bundle
+Binary wheels for Linux (x86-64) and macOS 15 or later (Apple silicon and Intel), CPython 3.9–3.13, bundle
 everything Helmer needs (GMP, MPFR, FLINT, msolve). The package is imported as `helmer` and installs the
 `helmer` command.
 

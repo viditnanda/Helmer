@@ -285,8 +285,8 @@ cmake -S . -B build -DHELMER_PYTHON=OFF -DHELMER_EXAMPLES=ON && cmake --build bu
 ## Citing
 
 If Helmer helps your research, please cite the software (GitHub's "Cite this repository"
-button gives the entry from `CITATION.cff`; every release has a DOI on Zenodo) and the
-papers behind the algorithms: [HN] for the conormal algorithm, [HM] for the form
+button gives the entry from `CITATION.cff`; version 1.0.0 is
+[doi:10.5281/zenodo.24531435](https://doi.org/10.5281/zenodo.24531435) on Zenodo) and the papers behind the algorithms: [HN] for the conormal algorithm, [HM] for the form
 implemented here and for the polar route, and [HLN] for stratifications of real
 varieties and maps.
 

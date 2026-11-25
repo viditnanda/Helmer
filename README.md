@@ -44,18 +44,24 @@ helmer::Stratification S = helmer::whitney_stratify(X);   // S.strata[d]: prime 
 
 ## Install
 
-Helmer needs FLINT ≥ 3.0 and GMP, and msolve ≥ 0.6 (its `libneogb` library), where CMake can find them, a
-C++20 compiler and CMake ≥ 3.18. On Ubuntu 24.04:
+```
+pip install helmer-whitney
+```
+
+Binary wheels for Linux (x86-64) and macOS (Apple silicon and Intel), CPython 3.9–3.13, bundle
+everything Helmer needs (GMP, MPFR, FLINT, msolve). The package is imported as `helmer` and installs the
+`helmer` command.
+
+Elsewhere (Windows, Linux on ARM), or to build from a clone of this repository, you need FLINT ≥ 3.0 with
+GMP, msolve ≥ 0.6 (its `libneogb` library), a C++20 compiler and CMake ≥ 3.18. On Ubuntu 24.04:
 
 ```
 sudo apt install libflint-dev libmsolve-dev cmake g++
-pip install helmer-whitney              # from PyPI (builds from source), or, in a clone of this repository:
-pip install .
+pip install .                         # in a clone; or pip install helmer-whitney --no-binary helmer-whitney
 ```
 
-The Python package is imported as `helmer` and installs the `helmer` command. Elsewhere, install FLINT from
-your package manager and build msolve from [its source](https://github.com/algebraic-solving/msolve) against
-it. Binary wheels, which will need neither, are planned.
+On other systems, install FLINT from your package manager and build msolve from
+[its source](https://github.com/algebraic-solving/msolve); `tools/build_wheel_deps.sh` does both.
 
 ## Getting started
 
@@ -267,7 +273,7 @@ three, 25 Nov 2026):
 
 ## Building and testing
 
-With the dependencies of [Install](#install):
+With the dependencies of [Install](#install) (for a build from source):
 
 ```
 pip install .                      # the Python module and the helmer command

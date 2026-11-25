@@ -17,9 +17,11 @@
 1. Update the version in `pyproject.toml`, `python/helmer/__init__.py` and `CITATION.cff` (and its
    `date-released`), and date the top entry of `CHANGELOG.md`.
 2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
-3. The workflow builds the source distribution, checks that it builds and passes the tests on Ubuntu, attaches
-   it to a GitHub release, and uploads it to PyPI.
+3. The workflow builds the binary wheels (`wheels.yml`: Linux x86-64 and macOS on Apple silicon and Intel,
+   CPython 3.9-3.13, each tested in a clean environment) and the source distribution, attaches them all to a
+   GitHub release, and uploads them to PyPI.
 
-Only a source distribution is published: `pip install helmer-whitney` compiles it, so FLINT and msolve must
-be installed (README, *Install*). Binary wheels would have to bundle FLINT, GMP, MPFR and msolve, built from
-source in the manylinux and macOS images; that is the next step for distribution.
+The wheels bundle GMP, MPFR, FLINT and msolve, built by `tools/build_wheel_deps.sh` without CPU-specific
+instructions (see the comments there), so `pip install helmer-whitney` needs nothing else on those
+platforms. Elsewhere (Windows, Linux on ARM) pip builds the source distribution, which needs FLINT and
+msolve installed. `wheels.yml` also runs on every push to a branch named `wheels`, and by hand.

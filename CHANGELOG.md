@@ -16,3 +16,5 @@ First release.
 * Certified ideal membership and elimination (`certify_membership`, `verify_membership`,
   `eliminate_certified`): cofactor identities checked exactly over ℚ.
 * The `helmer` command, a C++ example, six Python examples, and `docs/API.md`.
+* Binary wheels for Linux (x86-64) and macOS (arm64, x86-64), CPython 3.9–3.13, with GMP, MPFR, FLINT and
+  msolve bundled and built without CPU-specific instructions.

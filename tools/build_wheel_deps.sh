@@ -53,4 +53,8 @@ if [ ! -f "$PREFIX/include/msolve/neogb/libneogb.h" ]; then
   fi
   make -j"$JOBS" && make install && cd ..
 fi
+# Debug information makes the bundled libraries several times larger; wheels do not need it.
+if command -v strip >/dev/null && [ "$(uname)" = Linux ]; then
+  for f in "$PREFIX"/lib/lib*.so*; do [ -f "$f" ] && [ ! -L "$f" ] && strip --strip-debug "$f" || true; done
+fi
 echo "dependencies installed in $PREFIX"

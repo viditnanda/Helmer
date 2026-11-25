@@ -8,7 +8,8 @@ Helmer is a reimplementation of Martin Helmer's Macaulay2 package
 come from [msolve](https://msolve.lip6.fr)'s F4 library, polynomial arithmetic and
 factorisation from [FLINT](https://flintlib.org), and everything Macaulay2's
 top-level packages used to provide (dimension, elimination, saturation, minimal
-primes, conormal varieties, …) is implemented here.
+primes, conormal varieties, …) is implemented here. On the benchmarks of Helmer and
+Mohr it is 38× to 5000× faster than the Macaulay2 package, with the same strata.
 
 ```python
 import helmer
@@ -24,24 +25,59 @@ open strata are the connected components of `V(P)` minus the lower-dimensional
 closures, exactly as in the Macaulay2 package. Over ℝ the same polynomials describe a
 valid stratification (some strata may be empty or drop dimension), see [HLN].
 
-`whitney_stratify` stratifies the reduced variety even when its input ideal is
-nonradical. It uses the minimal primes for the component strata and their
-intersection for the singular locus of an equidimensional union.
+The same from the command line, and from C++:
 
-On affine inputs Helmer first finds constant directions whose directional
-derivative annihilates every supplied generator. It stratifies a complementary
-linear slice, pulls its stratum closures back to the original coordinates and
-adds the number of free directions to their dimensions. For example, equations
-in joint-coordinate differences admit simultaneous translations of all joints.
+```
+$ helmer "y^2*z - x^2"
+Whitney stratification in C^3 with coordinates x, y, z (0.00 s)
+  dim 2:  y^2*z - x^2
+  dim 1:  y, x
+  dim 0:  z, y, x
+$ helmer --projective "x*y*z + x*y*w + x*z*w + y*z*w" --vars x,y,z,w     # the Cayley cubic: four nodes
+```
 
-The default Whitney conormal computation first looks for an affine linear
-form vanishing on every singular component but nonzero on the parent
-component. On the dense smooth open where this form is invertible, the
-conormal equations already define the conormal bundle. Helmer saturates by
-that form using homogenization and graded reverse lexicographic order.
-It prefers a coordinate (in reverse input order), then a sparse linear form.
-If the singular locus spans the parent’s affine hull, it uses a Jacobian
-minor. Passing `saturation="minor"` selects the minor method explicitly.
+```cpp
+auto R = helmer::Ring::make({"x", "y", "z"});
+helmer::Ideal X(R, {helmer::Poly(R, "y^2*z - x^2")});
+helmer::Stratification S = helmer::whitney_stratify(X);   // S.strata[d]: prime ideals
+```
+
+## Install
+
+```
+pip install helmer-strat
+```
+
+Binary wheels for Linux (x86-64) and macOS (Apple silicon and Intel), CPython 3.9–3.13, bundle
+everything Helmer needs (GMP, MPFR, FLINT, msolve). The package is imported as `helmer` and installs the
+`helmer` command.
+
+Elsewhere (Windows, Linux on ARM), or to build from a clone of this repository, you need FLINT ≥ 3.0 with
+GMP, msolve ≥ 0.6 (its `libneogb` library), a C++20 compiler and CMake ≥ 3.18. On Ubuntu 24.04:
+
+```
+sudo apt install libflint-dev libmsolve-dev cmake g++
+pip install .                         # in a clone; or pip install helmer-strat --no-binary helmer-strat
+```
+
+On other systems, install FLINT from your package manager and build msolve from
+[its source](https://github.com/algebraic-solving/msolve); `tools/build_wheel_deps.sh` does both.
+
+## Getting started
+
+[`examples/`](examples) has six short Python scripts, each runnable as it is, and a C++ program:
+
+| | shows |
+|---|---|
+| [01_first_stratification.py](examples/01_first_stratification.py) | rings, ideals, reading a stratification; curves, surfaces, several equations, projective varieties |
+| [02_maps.py](examples/02_maps.py) | `map_stratify`: the roots of a x² + b x + c as (a, b, c) varies; where a map is not proper |
+| [03_algebra.py](examples/03_algebra.py) | Gröbner bases, dimension, minimal primes, elimination, saturation, conormal varieties |
+| [04_certified.py](examples/04_certified.py) | certified elimination: polynomial identities that prove where the critical values of a function lie |
+| [05_linkages.py](examples/05_linkages.py) | singular configurations of four-bar linkages; free translation directions |
+| [06_conormal_or_polar.py](examples/06_conormal_or_polar.py) | the two algorithms, side by side |
+| [cpp/stratify.cpp](examples/cpp/stratify.cpp) | the C++ API (`cmake -DHELMER_EXAMPLES=ON`) |
+
+The functions are documented in [docs/API.md](docs/API.md).
 
 ## What is implemented
 
@@ -66,7 +102,7 @@ by minimisation.
 ## How it works
 
 * **Gröbner bases over ℚ.** msolve's F4 modulo 31-bit primes, Chinese remaindering
-  and rational reconstruction; a reconstruction is accepted only after an
+  and rational reconstruction; a reconstruction is accepted only after a
   fresh prime confirms it and every input generator reduces to zero over ℚ.
   Each call samples distinct random primes and groups results by leading monomials. Only two monomial orders are ever
   needed (DRL, and a two-block elimination order), both native to msolve.
@@ -77,12 +113,29 @@ by minimisation.
   polynomial of a linear form (FLINT multivariate factorisation over ℚ). Each candidate
   is **certified prime** by checking `dim_{k(u)} k(u)[x∖u]/P = deg μᵢ`; if a candidate
   fails, the ideal is made radical (Seidenberg) and/or the linear form is re-drawn.
-* **Conormal varieties.** When no hyperplane chart is available for a prime `I`
-  of codimension *c*, Helmer saturates by a
-  *single* sparse *c*-minor `g ∉ I` instead of the whole minor ideal. Over the dense
-  open set `g ≠ 0` the conormal is smooth and reduced, so `(I + K) : g^∞` is exactly
-  `I(Con X)`. This is deterministic and is the main reason for the speed-up on larger
-  examples.
+* **Conormal varieties: hyperplane charts.** For a prime `I`, the conormal
+  computation first looks for an affine linear form ℓ vanishing on every component of
+  the singular locus but not on `V(I)`. On the dense open set ℓ ≠ 0, `V(I)` is smooth
+  and the conormal equations `I + K` (K the (c+1)-minors of the Jacobian bordered by the
+  dual coordinates) already define the conormal bundle, so `I(Con X) = (I + K) : ℓ^∞`.
+  Helmer computes that saturation in one Gröbner basis: in coordinates where ℓ is a
+  variable, homogenise and use graded reverse lexicographic order with ℓ last
+  (Bayer's trick). It prefers a coordinate (in reverse input order), then a sparse
+  linear form; `saturation="minor"` skips the chart.
+* **Conormal varieties: one minor.** When no chart exists (the singular locus spans
+  the affine hull), Helmer saturates by a *single* sparse *c*-minor `g ∉ I` instead of
+  the whole minor ideal. Over the dense open set `g ≠ 0` the conormal is smooth and
+  reduced, so `(I + K) : g^∞` is exactly `I(Con X)`. Saturations use the squarefree part
+  of `g`. Charts and single minors are deterministic, and are the main reason for the
+  speed-up on larger examples.
+* **Reduced varieties.** `whitney_stratify` stratifies the reduced variety even when
+  its input ideal is not radical: it uses the minimal primes for the component strata
+  and their intersection for the singular locus of an equidimensional union.
+* **Free directions.** On affine inputs Helmer first looks for constant directions v
+  with ∂_v f = 0 for every generator f, so that `V(I)` is a product with an affine
+  space (equations in the differences of joint coordinates of a mechanism, say). It
+  stratifies a complementary linear slice, pulls the strata back and adds the number of
+  free directions to their dimensions.
 
 ### What is probabilistic
 
@@ -90,8 +143,9 @@ The only Monte-Carlo step is the modular lift of Gröbner bases over ℚ (as in 
 itself and Macaulay2's modular methods): a wrong answer requires a reconstruction that
 is confirmed by a fresh 31-bit prime and passes the generator-reduction check.
 The latter establishes that the reconstructed ideal contains the input ideal. The prime certificate in
-`minimal_primes` and the conormal saturation are exact. A fully certified mode
-(verifying the lifted basis over ℚ) is on the roadmap.
+`minimal_primes` and the conormal saturation are exact. Ideal membership and
+elimination can be certified (next section); verifying every lifted Gröbner basis over
+ℚ, which would certify a whole stratification, is not implemented yet.
 
 ## Certified membership and elimination
 
@@ -154,13 +208,16 @@ In Macaulay2 the polar route is far faster than the conormal route (X₁ below: 
 210 s), because M2 saturates the conormal ideal by the entire ideal of minors. Helmer
 uses a hyperplane chart or one sparse minor (exact for prime input, see above), which removes
 that bottleneck. As a result the conormal route is the default: on every benchmark so far it
-is at least as fast as the polar route, and it is deterministic.
+is faster than the polar route, and it is deterministic.
 
 | Example | M2 conormal | M2 polar | Helmer conormal | Helmer polar |
 |---|---|---|---|---|
-| [HM] X₁ | 210 s | 2.7 s | 1.2 s | 0.7 s |
-| [HM] X₂ | 7.2 s | 208 s | 2.7 s | 13.8 s |
-| [HM] Example 1.1 | 14.1 s | 22.0 s | 0.8 s | 8.3 s |
+| [HM] X₁ | 210 s | 2.7 s | 0.04 s | 1.2 s |
+| [HM] X₂ | 7.2 s | 208 s | 0.19 s | 16.0 s |
+| [HM] Example 1.1 | 14.1 s | 22.0 s | 0.18 s | 8.6 s |
+
+Helmer times measured 25 Nov 2026 (best of three, `set_seed(1)` for the polar route); Macaulay2
+times as in the table below.
 
 The polar route draws random linear projections, so it returns valid but generally
 non-minimal stratifications with random extra strata (exactly as in M2). Neither
@@ -168,13 +225,13 @@ route is minimal in general: on Example 1.1 the conormal route returns three
 non-minimal curves, and on X₂ both conormal and the associated-primes route return a
 non-minimal point. The tests check every polar output against the *minimal*
 stratification computed by M2's `minCoarsenWS`. `polar_bound` (default 1000) sets the
-size of the random coefficients: smaller is faster (X₂: 5.0 s at bound 5) but raises
-the small probability of an unlucky projection.
+size of the random coefficients: smaller is faster but raises the small probability of
+an unlucky projection.
 
-The Briançon–Speder family `x⁵ + y⁷z + z¹⁵ + t·xy⁶` uses the chart
-`z ≠ 0`. Run `python bench/run_helmer.py briancon_speder` on an installed
-build to time the full stratification. The degree-nine analogue is available
-as `briancon_speder_small`.
+The Briançon–Speder family `x⁵ + y⁷z + z¹⁵ + t·xy⁶` (μ-constant, but not Whitney
+equisingular along the t-axis) uses the chart `z ≠ 0`. Helmer finds the point at the
+origin where Whitney's condition fails, in 35 s; its degree-nine analogue
+`briancon_speder_small` takes 0.3 s (`python bench/run_helmer.py briancon_speder`).
 
 ## Validation and speed
 
@@ -183,18 +240,24 @@ as `briancon_speder_small`.
 benchmark varieties of [HM], and assorted singular surfaces, curves and projective
 hypersurfaces; plus both root-classification examples for `mapStratify` and a battery
 of `decompose` comparisons. All agree: same strata, same dimensions. Polar outputs
-are checked to refine the minimal stratification (46 tests, ~20 s).
+are checked to refine the minimal stratification. Further tests cover nonreduced input,
+the hyperplane charts against the single-minor saturation, free directions (against the
+direct computation), and certified membership and elimination (85 tests, about 20 s).
+Independently of the fixtures, on every example of `bench/examples.py` the chart
+saturation agrees with the exact saturation by all minors, and adding a free variable
+(with a random rational shear) shifts every stratum up by one dimension.
 
-Wall-clock times on the same 2-core machine (M2 `cpuTime`; Helmer via Python):
+Wall-clock times on the same 2-core machine (M2 `cpuTime`; Helmer via Python, best of
+three, 25 Nov 2026):
 
 | Example | Macaulay2 | Helmer |
 |---|---|---|
-| Whitney cusp | 0.09 s | 0.04 s |
-| Projective quartic (`quartic_P`) | 0.39 s | 0.21 s |
-| [HM] Example 1.1 (hypersurface in ℂ⁴) | 14.1 s | 0.65 s |
-| [HM] X₁ (complete intersection in ℂ⁴) | 210 s | 0.93 s |
-| [HM] X₂ | 7.2 s | 2.3 s |
-| `mapStratify` Feynman example (package docs) | 1.38 s | 0.06 s |
+| Whitney cusp | 0.09 s | < 0.01 s |
+| Projective quartic (`quartic_P`) | 0.39 s | 0.01 s |
+| [HM] Example 1.1 (hypersurface in ℂ⁴) | 14.1 s | 0.18 s |
+| [HM] X₁ (complete intersection in ℂ⁴) | 210 s | 0.04 s |
+| [HM] X₂ | 7.2 s | 0.19 s |
+| `mapStratify` Feynman example (package docs) | 1.38 s | 0.07 s |
 
 ## Differences from the Macaulay2 package
 
@@ -208,15 +271,24 @@ Wall-clock times on the same 2-core machine (M2 `cpuTime`; Helmer via Python):
   runs, `helmer.set_seed` seeds both the prime stream and the separate stream
   for geometric choices.
 
-## Building
+## Building and testing
 
-Requires a C++20 compiler, CMake ≥ 3.18, FLINT ≥ 3.0, GMP and msolve ≥ 0.6 (its
-`libneogb`). On Ubuntu 24.04: `apt install libflint-dev libmsolve-dev`, then
+With the dependencies of [Install](#install) (for a build from source):
 
 ```
-pip install .
-pytest tests/
+pip install .                      # the Python module and the helmer command
+pytest tests/                      # 85 tests, about 20 s
+sh examples/run_all.sh             # every example
+cmake -S . -B build -DHELMER_PYTHON=OFF -DHELMER_EXAMPLES=ON && cmake --build build   # C++ library and example
 ```
+
+## Citing
+
+If Helmer helps your research, please cite the software (GitHub's "Cite this repository"
+button gives the entry from `CITATION.cff`; every release has a DOI on Zenodo) and the
+papers behind the algorithms: [HN] for the conormal algorithm, [HM] for the form
+implemented here and for the polar route, and [HLN] for stratifications of real
+varieties and maps.
 
 ## Licence
 

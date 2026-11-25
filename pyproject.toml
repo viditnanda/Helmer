@@ -3,8 +3,8 @@ requires = ["scikit-build-core>=0.8", "pybind11>=2.11"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "helmer"
-version = "0.1.0.dev0"
+name = "helmer-strat"   # the import name is helmer; "helmer" on PyPI belongs to another project
+version = "0.1.0"
 description = "Whitney stratifications of real and complex algebraic varieties and maps (C++ core, Python bindings)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -17,6 +17,14 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Mathematics",
   "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
+
+[project.urls]
+Homepage = "https://people.maths.ox.ac.uk/nanda/helmer/"
+Source = "https://github.com/viditnanda/Helmer"
+Issues = "https://github.com/viditnanda/Helmer/issues"
+
+[project.scripts]
+helmer = "helmer.__main__:main"
 
 [project.optional-dependencies]
 test = ["pytest"]

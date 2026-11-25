@@ -1,0 +1,8 @@
+{
+  "title": "Helmer: Whitney stratifications of algebraic varieties and maps",
+  "upload_type": "software",
+  "creators": [{"name": "Nanda, Vidit", "affiliation": "University of Oxford"}],
+  "license": "GPL-3.0-or-later",
+  "description": "A C++ library with Python bindings for Whitney stratifications of complex and real algebraic varieties and of polynomial maps, reimplementing Martin Helmer's Macaulay2 package WhitneyStratifications and named in his memory.",
+  "keywords": ["Whitney stratification", "conormal variety", "algebraic geometry", "singularities", "Groebner bases"]
+}

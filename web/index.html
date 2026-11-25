@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helmer: Whitney Stratifications · Vidit Nanda</title>
+<meta name="description" content="Helmer computes Whitney stratifications of complex and real algebraic varieties and of polynomial maps, from their equations. C++ with Python bindings and a command-line program; no Macaulay2 needed.">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+/* as on the Perseus page: tables of functions and timings */
+.prose table.spec { width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:.92em; }
+.prose table.spec th, .prose table.spec td { text-align:left; vertical-align:top; padding:6px 10px; border-bottom:1px solid rgba(127,127,127,.28); }
+.prose table.spec th { font-weight:600; }
+.prose .muted { opacity:.75; font-size:.92em; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="hero">
+  <img class="hero__img" src="../images/hero-caustics.jpg" srcset="../images/hero-caustics-1600.jpg 1600w, ../images/hero-caustics.jpg 3000w" sizes="100vw" alt="">
+  <div class="hero__scrim"></div>
+  <div class="wrap hero__inner">
+    <header class="site-header">
+      <a class="brand" href="../index.html">vidit nanda</a>
+      <nav class="nav" aria-label="Main">
+        <a href="../index.html">Home</a>
+        <a href="../papers.html">Papers</a>
+        <a href="../teaching.html">Teaching</a>
+        <a href="../software.html" class="is-current">Software</a>
+        <a href="../source/Vidit_Nanda_CV.pdf">CV</a>
+      </nav>
+    </header>
+    <div class="hero__title">
+      <div>
+        <h1>Helmer</h1>
+        <p class="hero__lede">Whitney stratifications of complex and real algebraic varieties, and of polynomial maps, from their equations. A C++ library with Python bindings and a command-line program, needing no Macaulay2.</p>
+      </div>
+      <nav class="hero__meta hero__jump" aria-label="Jump to"><a href="#get">version 0.1.0</a> · <a href="https://github.com/viditnanda/Helmer">GitHub</a> · <a href="#start">examples</a> · <a href="#cite">GPL licence</a></nav>
+    </div>
+  </div>
+</div>
+
+<main id="main" class="wrap">
+<div class="doc">
+
+  <nav class="toc" aria-label="On this page">
+    <span class="label">On this page</span>
+    <ol>
+      <li><a href="#what">What it computes</a></li>
+      <li><a href="#get">Install</a></li>
+      <li><a href="#start">Getting started</a></li>
+      <li><a href="#api">What is available</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#trust">What is exact, and what is certified</a></li>
+      <li><a href="#perf">Performance and validation</a></li>
+      <li><a href="#cite">Licence and citing</a></li>
+    </ol>
+    <p style="margin-top:20px"><a class="btn" href="../software.html">← All software</a></p>
+  </nav>
+
+  <div class="doc__body">
+
+    <section id="what" aria-labelledby="what-h">
+      <h2 id="what-h">What it computes</h2>
+      <div class="prose">
+<div class="callout">Helmer is named in memory of <b>Martin Helmer</b>. It reimplements his Macaulay2 package <a href="http://martin-helmer.com/Software/WhitStrat/WhitneyStratifications.m2">WhitneyStratifications</a> so that it runs wherever C++ or Python runs.</div>
+<p>A <b>Whitney stratification</b> of an algebraic variety X partitions it into smooth pieces, the strata, that fit together so regularly (Whitney's condition (b)) that the topology of X is locally constant along each stratum. It is the natural input for computing the topology of singular spaces: intersection homology, Morse theory, and the singularities of maps and mechanisms.</p>
+<p>Given polynomial equations with rational coefficients, Helmer returns, for each dimension d, the prime ideals whose zero sets are the closures of the d-dimensional strata. The open strata are differences: the points of V(P) not in any stratum of lower dimension.</p>
+<pre class="cmd">import helmer
+
+R  = helmer.Ring("x, y, z")
+WS = helmer.whitney_stratify(helmer.Ideal(R, ["y^2*z - x^2"]))    # the Whitney umbrella
+# {0: [ideal(z, y, x)], 1: [ideal(y, x)], 2: [ideal(y^2*z - x^2)]}</pre>
+<p>The umbrella is singular along the whole z-axis, but the origin is a stratum of its own: Whitney's condition fails there. Over the real numbers the same polynomials give a valid stratification of the real points; some strata may then be empty or of lower dimension.</p>
+<p>For a <b>polynomial map</b> f: X → Y, Helmer stratifies X and Y so that f maps each stratum of X submersively onto a stratum of Y. By Thom's isotopy lemma the fibres of f are then topologically the same over each stratum of Y: the target strata are where the topology of the fibres can change. For the roots of a x<sup>2</sup> + b x + c, these are the discriminant b<sup>2</sup> − 4ac and the hyperplane a = 0, where a root escapes to infinity.</p>
+      </div>
+    </section>
+
+    <section id="get" aria-labelledby="get-h">
+      <h2 id="get-h">Install</h2>
+      <div class="prose">
+<p>The current version is <strong>0.1.0</strong>.</p>
+      </div>
+      <div class="downloads" style="margin:16px 0 24px">
+        <a class="download" href="https://pypi.org/project/helmer-strat/"><b>Python</b><span>pip install helmer-strat</span></a>
+        <a class="download" href="https://pypi.org/project/helmer-strat/#files"><b>Linux, macOS</b><span>binary wheels</span></a>
+        <a class="download" href="https://github.com/viditnanda/Helmer"><b>Source code</b><span>GitHub · GPL-3.0</span></a>
+        <a class="download" href="https://github.com/viditnanda/Helmer/releases/latest"><b>Releases</b><span>source archives</span></a>
+      </div>
+      <div class="prose">
+<p>Binary packages for Linux (x86-64) and macOS (Apple silicon and Intel), for Python 3.9–3.13, include everything Helmer needs:</p>
+<pre class="cmd">pip install helmer-strat</pre>
+<p>The package is imported as <code>helmer</code> and installs the <code>helmer</code> command. On other systems pip builds it from source, which needs FLINT ≥ 3.0, msolve ≥ 0.6, a C++20 compiler and CMake; on Ubuntu, <code>sudo apt install libflint-dev libmsolve-dev cmake g++</code>. The C++ library alone builds with CMake from a clone of the repository.</p>
+<p>Bug reports and questions are welcome on the <a href="https://github.com/viditnanda/Helmer/issues">issue tracker</a>, or by <a href="mailto:viditnanda@gmail.com?subject=Helmer">email</a> with “Helmer” in the subject line.</p>
+      </div>
+    </section>
+
+    <section id="start" aria-labelledby="start-h">
+      <h2 id="start-h">Getting started</h2>
+      <div class="prose">
+<p>From the command line:</p>
+<pre class="cmd">$ helmer "y^2*z - x^2"
+Whitney stratification in C^3 with coordinates x, y, z (0.00 s)
+  dim 2:  y^2*z - x^2
+  dim 1:  y, x
+  dim 0:  z, y, x
+
+$ helmer --projective --vars x,y,z,w "x*y*z + x*y*w + x*z*w + y*z*w"   # the Cayley cubic: four nodes
+$ helmer --json "x^2 + y^2 + z^2 - 1" "x*y"                               # several equations</pre>
+<p>The <a href="https://github.com/viditnanda/Helmer/tree/main/examples"><code>examples/</code></a> directory has six short Python scripts and a C++ program:</p>
+<table class="spec">
+  <tr><th>example</th><th>shows</th></tr>
+  <tr><td>01 first stratification</td><td>rings and ideals; reading a stratification; curves, surfaces, several equations, projective varieties</td></tr>
+  <tr><td>02 maps</td><td>the roots of a quadratic as its coefficients vary; where a map is not proper</td></tr>
+  <tr><td>03 algebra</td><td>Gröbner bases, dimension, minimal primes, elimination, saturation, conormal varieties</td></tr>
+  <tr><td>04 certified</td><td>polynomial identities that prove where the critical values of a function lie</td></tr>
+  <tr><td>05 linkages</td><td>the singular configurations of four-bar linkages</td></tr>
+  <tr><td>06 conormal or polar</td><td>the two algorithms side by side</td></tr>
+  <tr><td>cpp/stratify.cpp</td><td>the C++ interface</td></tr>
+</table>
+<p>For example, a planar four-bar linkage whose lengths satisfy a + b = c + d has a configuration space with one singular point, where the bars line up and the mechanism can change mode:</p>
+<pre class="cmd">R = helmer.Ring("x1, y1, x2, y2")
+I = helmer.Ideal(R, ["x1^2 + y1^2 - 1", "(x2 - 2)^2 + y2^2 - 4", "(x1 - x2)^2 + (y1 - y2)^2 - 9"])
+helmer.whitney_stratify(I)[0]       # [ideal(y2, x2 - 4, y1, x1 - 1)]</pre>
+      </div>
+    </section>
+
+    <section id="api" aria-labelledby="api-h">
+      <h2 id="api-h">What is available</h2>
+      <div class="prose">
+<table class="spec">
+  <tr><th>Helmer</th><th>Macaulay2 (WhitneyStratifications)</th><th></th></tr>
+  <tr><td><code>whitney_stratify(I)</code></td><td><code>whitneyStratify(I, AssocPrimes=&gt;false)</code></td><td>the conormal algorithm (default)</td></tr>
+  <tr><td><code>whitney_stratify(I, method="polar")</code></td><td><code>whitneyStratifyPol(I)</code></td><td>polar varieties: randomised, non-minimal</td></tr>
+  <tr><td><code>map_stratify(F, X, Y)</code></td><td><code>mapStratify(F, X, Y)</code></td><td>maps, for Thom's isotopy lemma</td></tr>
+  <tr><td><code>non_proper_set(F, X, Y)</code></td><td><code>nonProperSet</code></td><td>where a map is not proper (Jelonek)</td></tr>
+  <tr><td><code>conormal(I)</code>, <code>polar_varieties(I)</code></td><td><code>conormal</code>, <code>polarVars</code></td><td></td></tr>
+  <tr><td><code>minimal_primes</code>, <code>eliminate</code>, <code>saturate</code>, <code>intersect</code>, Gröbner bases, dimension</td><td><code>decompose</code>, … (Macaulay2 itself)</td><td>implemented in Helmer</td></tr>
+  <tr><td><code>certify_membership</code>, <code>eliminate_certified</code>, <code>verify_membership</code></td><td></td><td>new: certified membership and elimination</td></tr>
+</table>
+<p>Projective varieties are handled with <code>projective=True</code>. Not yet ported: minimisation of stratifications (<code>minCoarsenWS</code>), the polar route for maps, and the Euler-obstruction and characteristic-cycle functions, which rest on Segre classes. The full reference is <a href="https://github.com/viditnanda/Helmer/blob/main/docs/API.md">docs/API.md</a>.</p>
+      </div>
+    </section>
+
+    <section id="how" aria-labelledby="how-h">
+      <h2 id="how-h">How it works</h2>
+      <div class="prose">
+<p>The algorithm is the conormal method of Helmer and Nanda, in the associated-prime-free form of Helmer and Mohr: the strata come from the singular loci of the pieces and from the fibres of their conormal varieties over the lower-dimensional pieces. What Macaulay2 supplied is implemented from scratch:</p>
+<ul>
+  <li><b>Gröbner bases over Q</b> from msolve's F4 modulo 31-bit primes, with Chinese remaindering and rational reconstruction, checked against a fresh prime and against the input.</li>
+  <li><b>Minimal primes</b> by factorisation and a Gianni–Trager–Zacharias-style reduction, with each prime certified by a degree count.</li>
+  <li><b>Conormal varieties</b>, where the time goes in Macaulay2, which saturates by the whole ideal of minors of the Jacobian. Helmer saturates by a single affine linear form vanishing on the singular locus when there is one (a "hyperplane chart", in one Gröbner basis by Bayer's trick), and otherwise by a single sparse minor. Both are exact for prime input.</li>
+  <li><b>Free directions.</b> When the equations are invariant under translation in some directions, as equations in the differences of the joint coordinates of a mechanism are, Helmer stratifies a slice and pulls the strata back.</li>
+</ul>
+      </div>
+    </section>
+
+    <section id="trust" aria-labelledby="trust-h">
+      <h2 id="trust-h">What is exact, and what is certified</h2>
+      <div class="prose">
+<p>The only randomised step is the modular lifting of Gröbner bases over Q, as in msolve and in Macaulay2's modular methods: a wrong answer would need a reconstruction that a fresh prime confirms and that contains the input ideal. Minimal primes are certified prime, and the conormal saturations are exact. The polar route also uses random projections, by design.</p>
+<p>Ideal membership and elimination can be <b>certified</b>: <code>eliminate_certified</code> returns, for each generator P of an elimination ideal, cofactors with P = Σ c<sub>j</sub> g<sub>j</sub>, checked exactly over Q. For the critical values of a function, this proves that every critical value is a root of P, even when the critical points are not isolated.</p>
+      </div>
+    </section>
+
+    <section id="perf" aria-labelledby="perf-h">
+      <h2 id="perf-h">Performance and validation</h2>
+      <div class="prose">
+<table class="spec">
+  <tr><th>example</th><th>Macaulay2</th><th>Helmer</th></tr>
+  <tr><td>Whitney cusp</td><td>0.09 s</td><td>&lt; 0.01 s</td></tr>
+  <tr><td>projective quartic</td><td>0.39 s</td><td>0.01 s</td></tr>
+  <tr><td>Helmer–Mohr, Example 1.1 (a hypersurface in C<sup>4</sup>)</td><td>14.1 s</td><td>0.18 s</td></tr>
+  <tr><td>Helmer–Mohr, X<sub>1</sub> (a complete intersection in C<sup>4</sup>)</td><td>210 s</td><td>0.04 s</td></tr>
+  <tr><td>Helmer–Mohr, X<sub>2</sub></td><td>7.2 s</td><td>0.19 s</td></tr>
+  <tr><td>a Feynman-integral map (package documentation)</td><td>1.38 s</td><td>0.07 s</td></tr>
+</table>
+<p class="muted">Wall clock on the same 2-core machine; Macaulay2 1.22 with WhitneyStratifications 2.23 on its conormal route, Helmer from Python. The Briançon–Speder family x<sup>5</sup> + y<sup>7</sup>z + z<sup>15</sup> + t·xy<sup>6</sup>, μ-constant but not Whitney-equisingular, takes 35 s.</p>
+<p>The test suite compares Helmer with Macaulay2 on the package's documentation examples, the Helmer–Mohr benchmarks and a range of singular curves, surfaces and projective hypersurfaces: the same strata in every case. It also checks the polar route against the minimal stratifications, the hyperplane charts against the exact saturation, the free directions against the direct computation, and the certificates.</p>
+      </div>
+    </section>
+
+    <section id="cite" aria-labelledby="cite-h">
+      <h2 id="cite-h">Licence and citing</h2>
+      <div class="prose">
+<p>Helmer is released under the GNU General Public License, version 3 or later (msolve is GPL, FLINT LGPL). The software comes with no warranty.</p>
+<p>If Helmer helps your research, please cite the software (every release has a DOI on Zenodo, linked from its <a href="https://github.com/viditnanda/Helmer/releases">release page</a>) and the papers behind it:</p>
+<p class="cite">Martin Helmer and Vidit Nanda. Conormal Spaces and Whitney Stratifications. <i>Foundations of Computational Mathematics</i>, 2022; correction 2023. <a href="https://arxiv.org/abs/2106.14555">arXiv:2106.14555</a>.</p>
+<p class="cite">Martin Helmer, Anton Leykin and Vidit Nanda. Effective Whitney Stratification of Real Algebraic Varieties. <i>Mathematics of Computation</i>, 2025. <a href="https://arxiv.org/abs/2307.05427">arXiv:2307.05427</a>.</p>
+<p class="cite">Martin Helmer and Rafael Mohr. Faster Computation of Whitney Stratifications and their Minimization. <a href="https://arxiv.org/abs/2406.17122">arXiv:2406.17122</a>.</p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+  <footer class="site-footer">
+    <address>Mathematical Institute, University of Oxford<br>Radcliffe Observatory Quarter, Woodstock Rd, Oxford OX2 6GG</address>
+    <p><a href="mailto:viditnanda@gmail.com?subject=Helmer">viditnanda@gmail.com</a></p>
+  </footer>
+</main>
+
+<script>var sc_project=8541486, sc_invisible=1, sc_security="f279a56d";</script>
+<script src="https://www.statcounter.com/counter/counter.js" async></script>
+</body>
+</html>

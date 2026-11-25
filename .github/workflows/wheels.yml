@@ -1,0 +1,46 @@
+# Binary wheels: Linux (manylinux_2_28, x86-64) and macOS (Apple silicon, Intel), CPython 3.9-3.13.
+# GMP and MPFR (Linux), FLINT and msolve are built from source (tools/build_wheel_deps.sh) and bundled into each wheel by
+# auditwheel / delocate, so `pip install helmer-strat` needs nothing else. Each wheel is installed in a
+# clean environment and runs the test suite.
+# Runs on pushes to the `wheels` branch, by hand, and from release.yml (workflow_call).
+name: wheels
+on:
+  push:
+    branches: [wheels]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref: { type: string, required: false, default: "" }
+jobs:
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.ref }}" }
+      - name: macOS dependencies (GMP and MPFR from Homebrew; FLINT and msolve from source)
+        if: runner.os == 'macOS'
+        run: |
+          brew install gmp mpfr autoconf automake libtool
+          # Homebrew's libraries are built for the runner's macOS, so everything else, wheels included, targets it too.
+          export MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d. -f1).0
+          echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix)" >> "$GITHUB_ENV"
+          PREFIX="$(brew --prefix)" MSOLVE_CONFIGURE_EXTRA=--disable-openmp sh tools/build_wheel_deps.sh
+      - uses: pypa/cibuildwheel@v2.21
+        env:
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
+          CIBW_SKIP: "*musllinux* *i686*"
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: >-
+            dnf install -y autoconf automake libtool git xz m4 &&
+            BUILD_GMP=1 sh tools/build_wheel_deps.sh
+          CIBW_ENVIRONMENT_LINUX: LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+          CIBW_TEST_REQUIRES: pytest
+          CIBW_TEST_COMMAND: python -m pytest -q {project}/tests && helmer "y^2*z - x^2"
+      - uses: actions/upload-artifact@v4
+        with: { name: "wheels-${{ matrix.os }}", path: wheelhouse/*.whl }

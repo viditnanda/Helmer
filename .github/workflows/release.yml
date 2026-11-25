@@ -1,4 +1,4 @@
-# On a version tag (e.g. v0.1.0): build the binary wheels (wheels.yml) and the source distribution, test
+# On a version tag (e.g. v1.0.0): build the binary wheels (wheels.yml) and the source distribution, test
 # them, attach them to a GitHub release and publish them to PyPI (trusted publishing; see RELEASING.md).
 name: release
 on:
@@ -13,6 +13,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: The tag names the version being built
+        run: |
+          v=$(sed -n 's/^version = "\(.*\)".*/\1/p' pyproject.toml)
+          p=$(sed -n 's/^__version__ = "\(.*\)".*/\1/p' python/helmer/__init__.py)
+          echo "tag $GITHUB_REF_NAME, pyproject.toml $v, __init__.py $p"
+          test "$GITHUB_REF_NAME" = "v$v" && test "$p" = "$v"
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: sudo apt-get update && sudo apt-get install -y libflint-dev libmsolve-dev

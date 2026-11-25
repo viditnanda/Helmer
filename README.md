@@ -93,14 +93,18 @@ The functions are documented in [docs/API.md](docs/API.md).
 | `polarSequence(X, Z)` | `polar_sequence(X, Z)`, `polar_multiplicity(X, Z, w)` | |
 | `multiplicity(X, Y)` (`SegreClasses`) | `multiplicity(X, Y)` | Computed locally, without Segre classes. |
 | `containedInSingularLocus(X, Y)` (`SegreClasses`) | `in_singular_locus(X, Y)` | |
+| `eulerObsMatrix(V)` | `euler_obstruction_matrix(S)`, `euler_obstruction(X, Z)` | |
+| `multCC(V)` | `cc_multiplicities(S)` | Same sign convention. |
+| `CSM(I)`, `Euler(I)` (`CharacteristicClasses`) | `csm_class(I)`, `euler_characteristic(I)` | Also affine, and per stratum: `chern_classes(S)`. |
+| | `chern_classes(S)` | χ, CSM class, Chern–Mather class and CC multiplicity of every stratum. |
+| | `global_polar_degrees(Z)`, `global_euler_obstruction(Z)` | Affine polar invariants (Seade–Tibăr–Verjovsky). |
 | | `contained(X, Y)` | V(X) ⊆ V(Y); for ideals, `X.contains(Y)`. |
 | `conormal(I)` | `conormal(I)` | In kⁿ × ℙⁿ⁻¹, variables `v_0..v_{n-1}`. |
 | `decompose(I)` | `minimal_primes(I)` | New implementation; see below. |
 | `eliminate`, `saturate`, `intersect`, `gb`, `dim`, `codim`, `independentSets` | same names / `Ideal` methods | |
 
-Not yet ported: `mapStratifyPol`, the Euler-obstruction / characteristic-cycle functions
-(`eulerObsMatrix`, `multCC`) and Segre classes; these come next, together with
-Chern–Schwartz–MacPherson classes of strata. `AssocPrimes=>true` (the original [HN] route
+Not yet ported: `mapStratifyPol`, and Segre classes (for Chern–Fulton and Milnor classes).
+`AssocPrimes=>true` (the original [HN] route
 via associated primes) is deliberately not ported: [HM] shows it is slower, and minimality
 is better obtained by minimisation.
 
@@ -230,6 +234,50 @@ for X₂ (4 to 3), 0.9 s for `briancon_speder_small` and 19 s for Briançon–Sp
 keeps its origin: there the polar curve of the hypersurface has multiplicity 2 against 0
 along the t-axis, and the polar surface 32 against 30.
 
+## Euler obstructions, characteristic cycles and Chern classes
+
+`chern_classes(S)` takes a Whitney stratification and returns, for every stratum, the
+Euler characteristic of the open stratum, its Chern–Schwartz–MacPherson class, the
+Chern–Mather class of its closure and its characteristic-cycle multiplicity;
+`euler_characteristic(I)` and `csm_class(I)` add these up for V(I). Classes are lists
+[a_0, …, a_N], a_k the degree of the k-dimensional part in A_*(ℙ^N) (Macaulay2's `CSM` is
+Σ a_k H^(N−k)); an affine variety is taken in 𝔸^N ⊂ ℙ^N. Three ingredients, none of them
+Segre classes:
+
+* **Local Euler obstructions** from the polar sequences above (Lê–Teissier:
+  Eu = Σ (−1)^(d−j) m_j), giving the unitriangular matrix Eu_{T̄}(S) over pairs of strata, as
+  M2's `eulerObsMatrix`. Characteristic-cycle multiplicities solve
+  Σ_T (−1)^(dim X − dim T) m_T Eu_{T̄} = 1, as M2's `multCC`.
+* **Global Euler obstructions.** For an affine variety Z of dimension d, Seade–Tibăr–Verjovsky
+  give Σ_S χ(S) Eu_Z(S) = Σ_i (−1)^(d−i) γ_i, where γ_i is the degree of the i-dimensional
+  global polar variety: a count of points of the polar locus on a general affine-linear
+  space of codimension i, off the singular locus (same Lagrange-type saturation as above).
+  Since the matrix is unitriangular, the global Euler obstructions of the stratum closures
+  give the Euler characteristics of all strata (Schürmann–Tibăr).
+* **Classes from sections.** The same on general linear sections gives χ(S ∩ L_r) for all
+  r; for projective input on the pieces L_r ∖ L_{r+1} of a general flag, each an affine
+  space. By Schürmann's transversality theorem, c_*(φ·1_L) = c(N_L)^(−1) ∩ c_*(φ)·[L], so
+  χ(S ∩ L_r) = Σ_{k≥r} a_k C(−r, k−r), a triangular system for the CSM class; with Eu
+  in place of 1, for the Chern–Mather class.
+
+Macaulay2's `CharacteristicClasses` computes CSM classes of projective varieties from
+projective degrees of polar maps, with inclusion–exclusion over the generators; here
+there is no inclusion–exclusion, affine varieties are allowed, and every stratum gets its
+own classes. On the projective fixtures, χ(X̄) = χ(X ∩ chart) + χ(X̄ ∩ hyperplane) with the
+two sides computed independently (affine and projective code), and the values are checked
+against closed forms: smooth hypersurfaces, singular plane cubics, the Cayley cubic
+(9 − 4 nodes), cones over plane curves (CC multiplicity (d−1)², the Milnor number, at the
+vertex). `bench/m2_characteristic_checks.m2` and `bench/characteristic_compare.py` print
+Macaulay2's and Helmer's values for the same inputs.
+
+The characteristic cycle sees topology, not Whitney's conditions. Strata that
+`min_coarsen` removes get multiplicity 0 (the three curves of [HM] Example 1.1, the origin of
+X₂), and so does the origin of Briançon–Speder, which is a genuine Whitney stratum: the
+family is μ-constant there, hence topologically trivial along the t-axis. Its 35 points
+where μ jumps have multiplicity 1, and χ = 1 for the whole hypersurface. Timings:
+Briançon–Speder 20 s (after 46 s of stratification and coarsening), the small version 0.7 s,
+every fixture together 1 s.
+
 ## Certified membership and elimination
 
 `certify_membership(I, h, block)` returns cofactors with h = Σ c_j g_j over the
@@ -330,7 +378,7 @@ checks multiplicities and polar sequences against closed forms (cones over plane
 degree d: polar sequence (0, d(d−1), d), Euler obstruction 2d − d²), `min_coarsen` against
 M2's `minCoarsenWS` where recorded, the polar route against the conormal route (the polar
 route adds random extra strata; after coarsening the two agree on every affine example),
-and projective varieties against their affine cones. `tests/test_filtration.py` checks that `whitney_filtration` contains the minimal stratification on every example (156 tests, about 40 s).
+and projective varieties against their affine cones. `tests/test_filtration.py` checks that `whitney_filtration` contains the minimal stratification on every example, and `tests/test_characteristic.py` the Euler obstructions, Euler characteristics and Chern classes (189 tests, about 40 s).
 Independently of the fixtures, on every example of `bench/examples.py` the chart
 saturation agrees with the exact saturation by all minors, and adding a free variable
 (with a random rational shear) shifts every stratum up by one dimension.
@@ -399,5 +447,10 @@ distributed binary of Helmer is GPL regardless.
 * [HLN] M. Helmer, A. Leykin, V. Nanda. *Effective Whitney stratification of real algebraic varieties.* Math. Comp. (2025); arXiv:2307.05427.
 * [HM] M. Helmer, R. Mohr. *Faster computation of Whitney stratifications and their minimization.* arXiv:2406.17122.
 * [HT] M. Helmer, F. Tellander. *Spectral decomposition of Euler–Mellin integrals.* arXiv:2505.12458.
+* D. T. Lê, B. Teissier. *Variétés polaires locales et classes de Chern des variétés singulières.* Ann. of Math. 114 (1981).
+* B. Teissier. *Variétés polaires II: multiplicités polaires, sections planes, et conditions de Whitney.* LNM 961 (1982).
+* J. Seade, M. Tibăr, A. Verjovsky. *Global Euler obstruction and polar invariants.* arXiv:math/0310431.
+* J. Schürmann, M. Tibăr. *Index formula for MacPherson cycles of affine algebraic varieties.* arXiv:math/0603338.
+* J. Schürmann. *Chern classes and transversality for singular spaces.* In *Singularities in Geometry, Topology, Foliations and Dynamics* (2017).
 * msolve: J. Berthomieu, C. Eder, M. Safey El Din. *msolve: a library for solving polynomial systems.* ISSAC 2021.
 * FLINT: The FLINT team. *FLINT: Fast Library for Number Theory.*

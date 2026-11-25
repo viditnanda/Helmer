@@ -1,5 +1,6 @@
 import pytest
 import helmer
+from test_helmer import FIX
 
 
 def test_pinned_polygon_filtration():
@@ -86,3 +87,25 @@ def test_symmetry_fixing_the_curve_requires_conormal():
     # Scaling x and y fixes the t-axis. Two branches coalesce for c(t)=±2.
     assert F[0] == helmer.Ideal(R, ["x", "y", "(t^2+t-1)*(t^2+t+3)"])
     assert "conormal complete" in log and "  curve orbit bound" not in log
+
+
+@pytest.mark.parametrize("name", sorted(FIX))
+def test_filtration_contains_the_minimal_stratification(name):
+    # A filtration may be finer than the minimal Whitney stratification, never coarser.
+    ex = FIX[name]
+    R = helmer.Ring(ex["vars"])
+    I = helmer.Ideal(R, ex["gens"])
+    F = helmer.whitney_filtration(I, projective=ex["projective"])
+    M = helmer.whitney_stratify(I, projective=ex["projective"], minimal=True)
+    for d, strata in M.items():
+        for S in strata:
+            assert d in F and helmer.contained(S, F[d])
+
+
+def test_shifted_quartic_filtration_is_minimal():
+    # Eager stratification takes minutes; the polar route then min_coarsen gives the same.
+    R = helmer.Ring("x,y,z,w,t")
+    I = helmer.Ideal(R, ["(x+y)^4+y^3*z+z^4+(t-2)*(x+y)*y^2+w^4"])
+    F = helmer.whitney_filtration(I)
+    assert F[0] == helmer.Ideal(R, ["x", "y", "z", "w", "t-2"])
+    assert F[1] == F[3] == helmer.Ideal(R, ["x", "y", "z", "w"])

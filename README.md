@@ -88,6 +88,7 @@ The functions are documented in [docs/API.md](docs/API.md).
 | `nonProperSet(F, X, Y)` | `non_proper_set(F, X, Y)` | Jelonek set, via the closure of the graph in ℙⁿ × kᵐ. |
 | `whitneyStratifyPol(I)` | `whitney_stratify(I, method="polar")` | Polar-variety route: randomised, non-minimal output. |
 | `polarVars(I)` | `polar_varieties(I)` | |
+| | `whitney_filtration(I)` | The closed dimension filtration, deferring prime decomposition; see below. |
 | `minCoarsenWS(V)` | `min_coarsen(S)`, or `whitney_stratify(I, minimal=True)` | The minimal Whitney stratification; see below. |
 | `polarSequence(X, Z)` | `polar_sequence(X, Z)`, `polar_multiplicity(X, Z, w)` | |
 | `multiplicity(X, Y)` (`SegreClasses`) | `multiplicity(X, Y)` | Computed locally, without Segre classes. |
@@ -153,6 +154,39 @@ elimination can be certified (next section); verifying every lifted Gröbner bas
 Multiplicities, polar sequences and minimisation (next section) are Monte Carlo by
 nature, being values at a *general* point; each is repeated with independent primes and
 random choices until two runs agree.
+
+## Filtrations without prime decomposition
+
+`whitney_filtration(I)` returns the Whitney stratification as its closed dimension
+filtration, `{d: J_d}` with V(J_d) the union of the stratum closures of dimension ≤ d,
+and avoids prime decomposition wherever it can. Mechanisms are where this matters:
+their configuration spaces are often reduced complete intersections whose prime
+decomposition is the expensive step.
+
+* **Reduced complete intersections stay whole.** If the number of equations equals the
+  height, V(I) is a complete intersection, hence unmixed (S1); if moreover the Jacobian
+  locus has smaller dimension, it is generically smooth on every component (R0), so I is
+  reduced by Serre's criterion. Such an I is processed as one piece.
+* **Finite loci are made reduced without decomposing.** Adding the squarefree part of
+  each coordinate's eliminant gives the radical of a zero-dimensional ideal
+  (Seidenberg's lemma).
+* **Symmetries bound Whitney failures along curves.** For a lower curve Z, Helmer finds
+  the affine-linear vector fields D with D(I_X) ⊆ I_X and D(I_Z) ⊆ I_Z. Their flows
+  preserve the pair, so Whitney regularity at a general point of Z holds along every orbit
+  on which some D is nonzero: if the common zeros of the fields on Z are finite, they are
+  the only candidate failures, and no conormal variety is needed. (A family whose singular
+  axis carries a ℂ*-action, like a weighted-homogeneous family with a shifted parameter,
+  is the typical case.)
+
+Elsewhere it falls back to the prime-by-prime route; `defer=False` uses it throughout.
+The filtration is a valid Whitney filtration but need not be minimal, and it carries no
+prime decomposition, so `min_coarsen` (which needs prime closures) does not apply to it
+directly. On the test inputs every stratum of the minimal Whitney stratification lies in
+the filtration (`tests/test_filtration.py`). The gain is largest where prime decomposition
+was the bottleneck: the pinned five-bar and the rotating four-bar go from over two minutes
+to milliseconds, and so does a Briançon–Speder-type quartic family with a shifted parameter
+(eager route over two minutes; polar route then `min_coarsen`, 14 s; filtration, 4 ms, equal
+to the minimal stratification).
 
 ## Multiplicities and minimal stratifications
 
@@ -296,7 +330,7 @@ checks multiplicities and polar sequences against closed forms (cones over plane
 degree d: polar sequence (0, d(d−1), d), Euler obstruction 2d − d²), `min_coarsen` against
 M2's `minCoarsenWS` where recorded, the polar route against the conormal route (the polar
 route adds random extra strata; after coarsening the two agree on every affine example),
-and projective varieties against their affine cones (126 tests, about 40 s).
+and projective varieties against their affine cones. `tests/test_filtration.py` checks that `whitney_filtration` contains the minimal stratification on every example (156 tests, about 40 s).
 Independently of the fixtures, on every example of `bench/examples.py` the chart
 saturation agrees with the exact saturation by all minors, and adding a free variable
 (with a random rational shear) shifts every stratum up by one dimension.

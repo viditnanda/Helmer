@@ -43,6 +43,10 @@ class Ideal {
   mutable std::shared_ptr<GB> gb_;
 };
 
+// Largest set of variables containing no leading monomial's support (the Krull
+// dimension of a monomial ideal is its size). Leading exponents in ring order.
+std::vector<int> max_independent_set(int n, const std::vector<std::vector<int>>& leads);
+
 Ideal operator+(const Ideal& I, const Ideal& J);
 Ideal operator+(const Ideal& I, const Poly& f);
 

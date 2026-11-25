@@ -88,16 +88,20 @@ The functions are documented in [docs/API.md](docs/API.md).
 | `nonProperSet(F, X, Y)` | `non_proper_set(F, X, Y)` | Jelonek set, via the closure of the graph in ℙⁿ × kᵐ. |
 | `whitneyStratifyPol(I)` | `whitney_stratify(I, method="polar")` | Polar-variety route: randomised, non-minimal output. |
 | `polarVars(I)` | `polar_varieties(I)` | |
+| `minCoarsenWS(V)` | `min_coarsen(S)`, or `whitney_stratify(I, minimal=True)` | The minimal Whitney stratification; see below. |
+| `polarSequence(X, Z)` | `polar_sequence(X, Z)`, `polar_multiplicity(X, Z, w)` | |
+| `multiplicity(X, Y)` (`SegreClasses`) | `multiplicity(X, Y)` | Computed locally, without Segre classes. |
+| `containedInSingularLocus(X, Y)` (`SegreClasses`) | `in_singular_locus(X, Y)` | |
+| | `contained(X, Y)` | V(X) ⊆ V(Y); for ideals, `X.contains(Y)`. |
 | `conormal(I)` | `conormal(I)` | In kⁿ × ℙⁿ⁻¹, variables `v_0..v_{n-1}`. |
 | `decompose(I)` | `minimal_primes(I)` | New implementation; see below. |
 | `eliminate`, `saturate`, `intersect`, `gb`, `dim`, `codim`, `independentSets` | same names / `Ideal` methods | |
 
-Not yet ported: `mapStratifyPol`, minimisation (`minCoarsenWS`), and the Euler-obstruction /
-characteristic-cycle functions (`eulerObsMatrix`, `multCC`, `polarSequence`). These all
-rest on Samuel multiplicities (Macaulay2's `SegreClasses`), which is the next piece of
-algebra to build. `AssocPrimes=>true` (the original [HN] route via associated primes)
-is deliberately not ported: [HM] shows it is slower, and minimality is better obtained
-by minimisation.
+Not yet ported: `mapStratifyPol`, the Euler-obstruction / characteristic-cycle functions
+(`eulerObsMatrix`, `multCC`) and Segre classes; these come next, together with
+Chern–Schwartz–MacPherson classes of strata. `AssocPrimes=>true` (the original [HN] route
+via associated primes) is deliberately not ported: [HM] shows it is slower, and minimality
+is better obtained by minimisation.
 
 ## How it works
 
@@ -139,13 +143,58 @@ by minimisation.
 
 ### What is probabilistic
 
-The only Monte-Carlo step is the modular lift of Gröbner bases over ℚ (as in msolve
+Stratification has one Monte-Carlo step, the modular lift of Gröbner bases over ℚ (as in msolve
 itself and Macaulay2's modular methods): a wrong answer requires a reconstruction that
 is confirmed by a fresh 31-bit prime and passes the generator-reduction check.
 The latter establishes that the reconstructed ideal contains the input ideal. The prime certificate in
 `minimal_primes` and the conormal saturation are exact. Ideal membership and
 elimination can be certified (next section); verifying every lifted Gröbner basis over
 ℚ, which would certify a whole stratification, is not implemented yet.
+Multiplicities, polar sequences and minimisation (next section) are Monte Carlo by
+nature, being values at a *general* point; each is repeated with independent primes and
+random choices until two runs agree.
+
+## Multiplicities and minimal stratifications
+
+`multiplicity(X, Y)` is the Samuel multiplicity of V(Y) along the irreducible V(X), which
+equals the multiplicity of Y at a general point x of X. Helmer computes it at one such
+point, over F_p for a random 31-bit prime p:
+
+* **A general point.** Slice X by dim X random affine hyperplanes, take an F_p-root of
+  the eliminant in one slice coordinate (FLINT), and solve for the others. Strata of
+  conjugate points (an irreducible zero-dimensional prime of degree > 1) have F_p-points
+  only for some primes; those primes are skipped.
+* **A curve germ.** Cut Y by w − 1 general hyperplanes through x (w = dim_x Y), which keeps
+  the multiplicity at x, and saturate by one more linear form through x. That removes any
+  embedded component at x, so what is left near x is a Cohen–Macaulay curve, whose
+  multiplicity is the length at x of its section by a further general hyperplane through
+  x. Non-Cohen–Macaulay Y are therefore fine: for two planes meeting in a point of ℂ⁴ the
+  answer is 2, where the length of a general linear section through the point is 3.
+
+Every system solved has length at most deg Y. Macaulay2's `SegreClasses` instead counts
+d^(dim Y − dim X) · deg Y points globally (d the degree of the equations of X) and
+subtracts.
+
+`polar_sequence(X, Z)` lists the multiplicities at a general point of X of the generic
+polar varieties of Z, by dimension, ending with e_X(Z). Each is computed the same way, on
+the slice: the polar locus is cut by the maximal minors of a random matrix bordered by
+combinations of the Jacobian rows, saturated by one combination of c-minors (which turns the minor
+equations into Lagrange-type equations, much cheaper for F4 than any low-degree equation
+of the singular locus). Entries of dimension at most dim X vanish and are not computed: the
+polar variety is too small to contain X, or equals the closure of a subset of Z_reg; so do
+all entries below the top when e_X(Z) = 1.
+
+`min_coarsen(S)` (and `whitney_stratify(I, minimal=True)`) returns the coarsest Whitney
+stratification refined by S, using Teissier's criterion. Strata are processed from the
+top down. A stratum X merges into the open stratum of Y when Y is the unique smallest
+remaining stratum whose closure contains X, every remaining stratum whose closure contains
+X also contains Y, Y-bar is smooth along X (e_X(Y-bar) = 1), and every larger such stratum
+Z has the same polar multiplicities along X as along Y. Polar sequences are compared entry
+by entry and the comparison stops at the first difference. On the benchmarks coarsening
+costs about as much as stratifying: 0.07 s for [HM] Example 1.1 (10 strata to 7), 0.2 s
+for X₂ (4 to 3), 0.9 s for `briancon_speder_small` and 19 s for Briançon–Speder, which
+keeps its origin: there the polar curve of the hypersurface has multiplicity 2 against 0
+along the t-axis, and the polar surface 32 against 30.
 
 ## Certified membership and elimination
 
@@ -242,7 +291,12 @@ hypersurfaces; plus both root-classification examples for `mapStratify` and a ba
 of `decompose` comparisons. All agree: same strata, same dimensions. Polar outputs
 are checked to refine the minimal stratification. Further tests cover nonreduced input,
 the hyperplane charts against the single-minor saturation, free directions (against the
-direct computation), and certified membership and elimination (85 tests, about 20 s).
+direct computation), and certified membership and elimination. `tests/test_local.py`
+checks multiplicities and polar sequences against closed forms (cones over plane curves of
+degree d: polar sequence (0, d(d−1), d), Euler obstruction 2d − d²), `min_coarsen` against
+M2's `minCoarsenWS` where recorded, the polar route against the conormal route (the polar
+route adds random extra strata; after coarsening the two agree on every affine example),
+and projective varieties against their affine cones (126 tests, about 40 s).
 Independently of the fixtures, on every example of `bench/examples.py` the chart
 saturation agrees with the exact saturation by all minors, and adding a free variable
 (with a random rational shear) shifts every stratum up by one dimension.
@@ -267,6 +321,16 @@ three, 25 Nov 2026):
 * In `mapStratify`, the M2 code pulls Whitney points of `Y` back to `X` with the
   *forward* elimination (`elimIm`), which is only correct for coordinate projections;
   Helmer uses the preimage `f⁻¹(K) ∩ X` throughout.
+* `minCoarsenWS` (2.23) differs from Teissier's criterion as implemented here in three
+  places, which can make it return a stratification that is not Whitney:
+  (a) for affine input the test for Y-bar being singular along X computes the
+  multiplicity of X along *itself*, which is always 1, so the test never fires;
+  (b) the polar test loops over the strata Z containing X but reads them as `Zlist_b`
+  instead of `Zlist_(contY_b)`, i.e. by position in the whole level, so it can compare
+  strata that do not contain X and skip those that do (umbrella ∪ the plane x = 5 loses
+  the umbrella's origin if the plane comes first);
+  (c) a stratum contained in no stratum closure of the next nonempty level up is dropped
+  unchecked (cone ∪ the plane z = 5 loses the cone's vertex). Both examples are tests.
 * The Gröbner prime stream is seeded from system randomness. For reproducible
   runs, `helmer.set_seed` seeds both the prime stream and the separate stream
   for geometric choices.

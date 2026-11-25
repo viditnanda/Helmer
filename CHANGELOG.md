@@ -1,5 +1,18 @@
 # Changes
 
+## Unreleased
+
+* Minimal Whitney stratifications: `min_coarsen` and `whitney_stratify(..., minimal=True)`
+  (Macaulay2 `minCoarsenWS`), by Teissier's polar criterion. On every affine benchmark the
+  polar route's stratification (random extra strata) and the conormal route's coarsen to the
+  same answer; the M2 results recorded for [HM] X₂ and Example 1.1 are reproduced. Three
+  defects of `minCoarsenWS` 2.23 are avoided (README, "Differences").
+* Local invariants at a general point, computed over F_p on curve germs cut out by slices
+  through one general F_p-point (Monte Carlo, two agreeing runs): `multiplicity` (Samuel
+  multiplicity, any X ⊆ Y; no Segre classes needed), `polar_sequence`, `polar_multiplicity`,
+  `in_singular_locus`, and `contained` (V(X) ⊆ V(Y)).
+* Internals: a mod-p layer over msolve's F4 and FLINT's `nmod_mpoly` (`helmer/modp.hpp`).
+
 ## 1.0.0 (2026-11-25)
 
 First release.

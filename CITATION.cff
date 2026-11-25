@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If Helmer helps your research, please cite the software as below, and the papers behind its algorithms."
+title: "Helmer: Whitney stratifications of algebraic varieties and maps"
+version: 0.1.0
+date-released: 2026-11-25
+license: GPL-3.0-or-later
+authors:
+  - family-names: Nanda
+    given-names: Vidit
+repository-code: "https://github.com/viditnanda/Helmer"
+url: "https://people.maths.ox.ac.uk/nanda/helmer/"
+keywords: ["Whitney stratification", "conormal variety", "algebraic geometry", "singularities"]
+references:
+  - type: article
+    title: "Conormal spaces and Whitney stratifications"
+    authors:
+      - family-names: Helmer
+        given-names: Martin
+      - family-names: Nanda
+        given-names: Vidit
+    journal: "Foundations of Computational Mathematics"
+    year: 2022
+  - type: article
+    title: "Effective Whitney stratification of real algebraic varieties"
+    authors:
+      - family-names: Helmer
+        given-names: Martin
+      - family-names: Leykin
+        given-names: Anton
+      - family-names: Nanda
+        given-names: Vidit
+    journal: "Mathematics of Computation"
+    year: 2025
+  - type: article
+    title: "Faster computation of Whitney stratifications and their minimization"
+    authors:
+      - family-names: Helmer
+        given-names: Martin
+      - family-names: Mohr
+        given-names: Rafael
+    notes: "arXiv:2406.17122"
+    year: 2024

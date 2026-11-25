@@ -12,4 +12,4 @@ __all__ = ["Ring", "Poly", "Ideal", "minimal_primes", "eliminate", "saturate",
            "intersect", "conormal", "whitney_stratify", "map_stratify",
            "non_proper_set", "polar_varieties", "set_seed", "stats",
            "certify_membership", "verify_membership", "eliminate_certified"]
-__version__ = "0.1.0"
+__version__ = "1.0.0"

@@ -14,9 +14,12 @@
 
 ## Each release
 
-1. Update the version in `pyproject.toml`, `python/helmer/__init__.py` and `CITATION.cff` (and its
-   `date-released`), and date the top entry of `CHANGELOG.md`.
-2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
+1. On a branch, update the version in `pyproject.toml`, `python/helmer/__init__.py`, `CITATION.cff` (and its
+   `date-released`) and `web/index.html` (twice: the header link and "The current version is"), and date the
+   top entry of `CHANGELOG.md`. Merge into `main`.
+2. Tag the merged commit and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag must name the version
+   in `pyproject.toml`; the workflow stops before publishing anything if it does not. Zenodo must already be
+   switched on, since it archives only releases made after that.
 3. The workflow builds the binary wheels (`wheels.yml`: Linux x86-64 and macOS on Apple silicon and Intel,
    CPython 3.9-3.13, each tested in a clean environment) and the source distribution, attaches them all to a
    GitHub release, and uploads them to PyPI.

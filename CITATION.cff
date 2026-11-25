@@ -1,7 +1,8 @@
 cff-version: 1.2.0
 message: "If Helmer helps your research, please cite the software as below, and the papers behind its algorithms."
 title: "Helmer: Whitney stratifications of algebraic varieties and maps"
-version: 0.1.0
+version: 1.0.0
+doi: 10.5281/zenodo.24531435
 date-released: 2026-11-25
 license: GPL-3.0-or-later
 authors:

@@ -3,7 +3,7 @@ requires = ["scikit-build-core>=0.8", "pybind11>=2.11"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "helmer-whitney"   # the import name is helmer; "helmer" on PyPI belongs to another project
+name = "helmer-strat"   # the import name is helmer; "helmer" on PyPI belongs to another project
 version = "0.1.0"
 description = "Whitney stratifications of real and complex algebraic varieties and maps (C++ core, Python bindings)"
 readme = "README.md"

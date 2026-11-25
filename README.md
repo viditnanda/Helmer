@@ -45,7 +45,7 @@ helmer::Stratification S = helmer::whitney_stratify(X);   // S.strata[d]: prime 
 ## Install
 
 ```
-pip install helmer-whitney
+pip install helmer-strat
 ```
 
 Binary wheels for Linux (x86-64) and macOS (Apple silicon and Intel), CPython 3.9–3.13, bundle
@@ -57,7 +57,7 @@ GMP, msolve ≥ 0.6 (its `libneogb` library), a C++20 compiler and CMake ≥ 3.1
 
 ```
 sudo apt install libflint-dev libmsolve-dev cmake g++
-pip install .                         # in a clone; or pip install helmer-whitney --no-binary helmer-whitney
+pip install .                         # in a clone; or pip install helmer-strat --no-binary helmer-strat
 ```
 
 On other systems, install FLINT from your package manager and build msolve from

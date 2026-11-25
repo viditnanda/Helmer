@@ -5,8 +5,8 @@
 ## One-time setup
 
 1. **PyPI.** The name `helmer` is taken on PyPI by an unrelated project, so the distribution is
-   `helmer-whitney` (the module is still `import helmer`). At https://pypi.org, under *Your account →
-   Publishing → Add a new pending publisher*, enter: project `helmer-whitney`, owner `viditnanda`,
+   `helmer-strat` (the module is still `import helmer`). At https://pypi.org, under *Your account →
+   Publishing → Add a new pending publisher*, enter: project `helmer-strat`, owner `viditnanda`,
    repository `Helmer`, workflow `release.yml`, environment `pypi`.
 2. **Zenodo (DOI).** At https://zenodo.org (logged in with GitHub), under *GitHub*, switch on
    `viditnanda/Helmer`. Every GitHub release then gets a DOI; `.zenodo.json` and `CITATION.cff` supply the
@@ -22,6 +22,6 @@
    GitHub release, and uploads them to PyPI.
 
 The wheels bundle GMP, MPFR, FLINT and msolve, built by `tools/build_wheel_deps.sh` without CPU-specific
-instructions (see the comments there), so `pip install helmer-whitney` needs nothing else on those
+instructions (see the comments there), so `pip install helmer-strat` needs nothing else on those
 platforms. Elsewhere (Windows, Linux on ARM) pip builds the source distribution, which needs FLINT and
 msolve installed. `wheels.yml` also runs on every push to a branch named `wheels`, and by hand.

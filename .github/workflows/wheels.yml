@@ -1,6 +1,6 @@
 # Binary wheels: Linux (manylinux_2_28, x86-64) and macOS (Apple silicon, Intel), CPython 3.9-3.13.
 # GMP and MPFR (Linux), FLINT and msolve are built from source (tools/build_wheel_deps.sh) and bundled into each wheel by
-# auditwheel / delocate, so `pip install helmer-whitney` needs nothing else. Each wheel is installed in a
+# auditwheel / delocate, so `pip install helmer-strat` needs nothing else. Each wheel is installed in a
 # clean environment and runs the test suite.
 # Runs on pushes to the `wheels` branch, by hand, and from release.yml (workflow_call).
 name: wheels

@@ -86,6 +86,37 @@ disagreeing). `helmer.set_seed` makes them reproducible.
 C++: `helmer/multiplicity.hpp` (`min_coarsen`, `multiplicity`, `polar_sequence`, `polar_multiplicity`,
 `in_singular_locus`, `contained`, with `LocalOptions{trials, max_runs, max_pointless_primes}`).
 
+## Euler obstructions, characteristic cycles and Chern classes
+
+```python
+euler_characteristic(ideal, projective=False) -> int
+csm_class(ideal, projective=False) -> [a_0, ..., a_N]
+chern_classes(strata, projective=False, trials=2, log=None) -> dict
+euler_obstruction_matrix(strata, projective=False) -> (labels, M)
+cc_multiplicities(strata, projective=False) -> {dim: [int, ...]}
+euler_obstruction(X, Z) -> int
+global_polar_degrees(Z) -> [int, ...]
+global_euler_obstruction(Z) -> int
+```
+
+* `chern_classes(strata)`: for a Whitney stratification (e.g. `whitney_stratify`'s output), a dictionary of
+  `{dim: [value per stratum]}` dictionaries aligned with `strata`: `"euler"` (χ of the open stratum), `"csm"`
+  (its CSM class), `"chern_mather"` (the Chern–Mather class of its closure), `"cc"` (characteristic-cycle
+  multiplicity of the constant function), `"sections"` (χ of the open stratum on general linear sections of
+  codimension 0, 1, …); and `"ambient"`, N. A class is `[a_0, …, a_N]`, a_k the degree of its dimension-k part in
+  A_*(ℙ^N) (Macaulay2's `CSM` is Σ a_k H^(N−k)); affine varieties are taken in 𝔸^N ⊂ ℙ^N.
+* `euler_characteristic(I)`, `csm_class(I)`: the same for V(I), summed over a stratification
+  (Macaulay2: `Euler`, `CSM` in `CharacteristicClasses`, projective only).
+* `euler_obstruction_matrix(strata)`: `labels` lists `(dim, closure)` by increasing dimension; `M[s][t]` is the
+  Euler obstruction of closure t at a general point of stratum s (Macaulay2: `eulerObsMatrix`).
+* `cc_multiplicities(strata)`: the m_t with Σ_t (−1)^(dim X − dim t) m_t Eu_(closure t) = 1 (Macaulay2: `multCC`).
+* `euler_obstruction(X, Z)`: Eu of V(Z) (Z prime) at a general point of V(X), by Lê–Teissier from `polar_sequence`.
+* `global_polar_degrees(Z)`, `global_euler_obstruction(Z)`: for an affine V(Z) of pure dimension d, the degrees
+  γ_0, …, γ_d of its global polar varieties and Σ (−1)^(d−i) γ_i (Seade–Tibăr–Verjovsky), which is χ(V(Z)) when
+  V(Z) is smooth.
+
+Monte Carlo in the same sense as the previous section. C++: `helmer/characteristic.hpp`.
+
 ## Maps
 
 ```python

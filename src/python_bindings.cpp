@@ -4,6 +4,7 @@
 
 #include "helmer/certify.hpp"
 #include "helmer/multiplicity.hpp"
+#include "helmer/characteristic.hpp"
 #include "helmer/whitney.hpp"
 
 namespace py = pybind11;
@@ -104,6 +105,18 @@ std::function<void(const std::string&)> logger(py::object log) {
   if (log.is_none()) return {};
   auto f = log.cast<std::function<void(const std::string&)>>();
   return [f](const std::string& s) { py::gil_scoped_acquire g; f(s); };
+}
+
+// A vector indexed like EulerData (strata by increasing dimension) as {dim: [values]}.
+template <class T>
+py::dict by_stratum(const EulerData& E, const std::vector<T>& v) {
+  py::dict d;
+  for (size_t i = 0; i < E.dims.size(); ++i) {
+    py::int_ k(E.dims[i]);
+    if (!d.contains(k)) d[k] = py::list();
+    d[k].cast<py::list>().append(v[i]);
+  }
+  return d;
 }
 
 }  // namespace
@@ -249,6 +262,51 @@ PYBIND11_MODULE(_helmer, m) {
   m.def("whitney_filtration", &whitney_filtration, py::arg("ideal"), py::arg("projective") = false,
         py::arg("defer") = true, py::arg("log") = nullptr,
         "Vanishing ideals of the cumulative closed dimension filtration.");
+  m.def("euler_obstruction", [](const Ideal& X, const Ideal& Z, int trials) {
+    return euler_obstruction(X, Z, local_options(trials));
+  }, py::arg("X"), py::arg("Z"), py::arg("trials") = 2,
+     "Local Euler obstruction of V(Z) (Z prime) at a general point of V(X), by the "
+     "Lê–Teissier formula from polar_sequence; 0 if X is not in V(Z).");
+  m.def("global_polar_degrees", [](const Ideal& Z, int trials) {
+    return global_polar_degrees(Z, local_options(trials));
+  }, py::arg("Z"), py::arg("trials") = 2,
+     "Degrees gamma_0..gamma_d of the global polar varieties of the affine variety V(Z) "
+     "(Z radical, pure dimension d); gamma_d = deg V(Z).");
+  m.def("global_euler_obstruction", [](const Ideal& Z, int trials) {
+    return global_euler_obstruction(Z, local_options(trials));
+  }, py::arg("Z"), py::arg("trials") = 2,
+     "Seade–Tibăr–Verjovsky global Euler obstruction of the affine variety V(Z): "
+     "sum (-1)^(d-i) gamma_i; chi(V(Z)) when V(Z) is smooth.");
+  m.def("euler_obstruction_matrix", [](py::dict strata, bool projective, int trials, py::object log) {
+    auto E = euler_obstruction_matrix(strata_from(strata, projective), local_options(trials), logger(log));
+    py::list labels;
+    for (size_t i = 0; i < E.dims.size(); ++i) labels.append(py::make_tuple(E.dims[i], E.strata[i]));
+    return py::make_tuple(labels, E.eu);
+  }, py::arg("strata"), py::arg("projective") = false, py::arg("trials") = 2, py::arg("log") = py::none(),
+     "(labels, M): labels lists (dim, closure) by increasing dimension; M[s][t] is the Euler "
+     "obstruction of closure t at a general point of stratum s (M2: eulerObsMatrix, transposed "
+     "indexing aside).");
+  m.def("cc_multiplicities", [](py::dict strata, bool projective, int trials, py::object log) {
+    auto E = euler_obstruction_matrix(strata_from(strata, projective), local_options(trials), logger(log));
+    return by_stratum(E, cc_multiplicities(E));
+  }, py::arg("strata"), py::arg("projective") = false, py::arg("trials") = 2, py::arg("log") = py::none(),
+     "Characteristic-cycle multiplicities of the constant function, {dim: [m, ...]} aligned with "
+     "`strata` (M2: multCC): sum_t (-1)^(dim X - dim t) m_t Eu_(closure t) = 1.");
+  m.def("chern_classes", [](py::dict strata, bool projective, int trials, py::object log) {
+    auto D = chern_classes(strata_from(strata, projective), local_options(trials), logger(log));
+    py::dict out;
+    out["ambient"] = D.ambient;
+    out["euler"] = by_stratum(D.E, D.chi);
+    out["csm"] = by_stratum(D.E, D.csm);
+    out["chern_mather"] = by_stratum(D.E, D.mather);
+    out["sections"] = by_stratum(D.E, D.sections);
+    out["cc"] = by_stratum(D.E, cc_multiplicities(D.E));
+    return out;
+  }, py::arg("strata"), py::arg("projective") = false, py::arg("trials") = 2, py::arg("log") = py::none(),
+     "Per stratum of a Whitney stratification: 'euler' (chi of the open stratum), 'csm' and "
+     "'chern_mather' ([a_0, ..., a_N]: a_k is the degree of the dimension-k part of the class in "
+     "A_*(P^N); c_SM of the open stratum, c_M of its closure; affine varieties sit in A^N ⊂ P^N), "
+     "'sections' (chi of the open stratum on general codimension-r linear sections), 'cc'.");
   m.def("polar_varieties", [](const Ideal& I, long bound) {
     return polar_varieties(I, jacobian_ideal(I), bound);
   }, py::arg("ideal"), py::arg("bound") = 1000,

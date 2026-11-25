@@ -11,6 +11,14 @@
   through one general F_p-point (Monte Carlo, two agreeing runs): `multiplicity` (Samuel
   multiplicity, any X ⊆ Y; no Segre classes needed), `polar_sequence`, `polar_multiplicity`,
   `in_singular_locus`, and `contained` (V(X) ⊆ V(Y)).
+* Euler obstructions, characteristic cycles and Chern classes of strata: `chern_classes`
+  (per stratum: χ, CSM class, Chern–Mather class, CC multiplicity), `euler_characteristic`,
+  `csm_class`, `euler_obstruction_matrix` and `cc_multiplicities` (M2 `eulerObsMatrix`,
+  `multCC`), `euler_obstruction`, `global_polar_degrees`, `global_euler_obstruction`. Local
+  Euler obstructions by Lê–Teissier from polar sequences; Euler characteristics of all strata
+  from global polar degrees (Seade–Tibăr–Verjovsky) by the unitriangular Euler-obstruction
+  matrix; CSM and Chern–Mather classes from general linear sections by Schürmann's
+  transversality theorem. No Segre classes; affine and projective.
 * `whitney_filtration`: the closed dimension filtration, deferring prime decomposition
   (reduced complete intersections kept whole by Serre's criterion, finite loci made radical
   by Seidenberg's lemma, Whitney failures along curves bounded by affine-linear symmetries).

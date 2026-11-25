@@ -3,6 +3,7 @@
 #include <pybind11/stl.h>
 
 #include "helmer/certify.hpp"
+#include "helmer/multiplicity.hpp"
 #include "helmer/whitney.hpp"
 
 namespace py = pybind11;
@@ -76,6 +77,33 @@ py::dict strata_dict(const Stratification& S) {
   py::dict d;
   for (auto& [dim, L] : S.strata) d[py::int_(dim)] = L;
   return d;
+}
+
+Stratification strata_from(py::dict d, bool projective) {
+  Stratification S{nullptr, projective, {}};
+  for (auto item : d) {
+    const int dim = item.first.cast<int>();
+    auto& L = S.strata[dim];
+    for (auto I : item.second) {
+      L.push_back(I.cast<Ideal>());
+      if (!S.ring) S.ring = L.back().ring();
+    }
+  }
+  if (!S.ring) throw std::invalid_argument("empty stratification");
+  return S;
+}
+
+LocalOptions local_options(int trials) {
+  LocalOptions o;
+  o.trials = trials;
+  o.max_runs = std::max(8, 4 * trials);
+  return o;
+}
+
+std::function<void(const std::string&)> logger(py::object log) {
+  if (log.is_none()) return {};
+  auto f = log.cast<std::function<void(const std::string&)>>();
+  return [f](const std::string& s) { py::gil_scoped_acquire g; f(s); };
 }
 
 }  // namespace
@@ -160,7 +188,7 @@ PYBIND11_MODULE(_helmer, m) {
      "Conormal variety in k^n x P^(n-1) (variables v_0..v_{n-1}).");
   m.def("whitney_stratify", [](const Ideal& I, bool projective, int level,
                                const std::string& sat, py::object log,
-                               const std::string& method, long polar_bound) {
+                               const std::string& method, long polar_bound, bool minimal) {
     WhitneyOptions o;
     o.method = method;
     o.polar_bound = polar_bound;
@@ -171,12 +199,53 @@ PYBIND11_MODULE(_helmer, m) {
       auto f = log.cast<std::function<void(const std::string&)>>();
       o.log = [f](const std::string& s) { py::gil_scoped_acquire g; f(s); };
     }
-    return strata_dict(whitney_stratify(I, o));
+    auto S = whitney_stratify(I, o);
+    if (minimal) S = min_coarsen(S, LocalOptions{}, o.log);
+    return strata_dict(S);
   }, py::arg("ideal"), py::arg("projective") = false, py::arg("level") = -1,
      py::arg("saturation") = "random", py::arg("log") = py::none(),
-     py::arg("method") = "conormal", py::arg("polar_bound") = 1000,
+     py::arg("method") = "conormal", py::arg("polar_bound") = 1000, py::arg("minimal") = false,
      "Whitney stratification. method='conormal' (Helmer–Mohr; default) or 'polar' "
-     "(polar varieties; usually faster, randomised, generally non-minimal).");
+     "(polar varieties; usually faster, randomised, generally non-minimal). "
+     "minimal=True coarsens the result to the minimal Whitney stratification (min_coarsen).");
+  m.def("min_coarsen", [](py::dict strata, bool projective, int trials, py::object log) {
+    return strata_dict(min_coarsen(strata_from(strata, projective), local_options(trials), logger(log)));
+  }, py::arg("strata"), py::arg("projective") = false, py::arg("trials") = 2,
+     py::arg("log") = py::none(),
+     "The minimal (coarsest) Whitney stratification refined by `strata` (a Whitney "
+     "stratification, e.g. from whitney_stratify), by Teissier's criterion: a stratum is "
+     "merged into the unique smallest stratum above it when that stratum's closure is "
+     "smooth along it and every larger stratum has the same polar multiplicities along "
+     "both (M2: minCoarsenWS). Monte Carlo; see multiplicity.");
+  m.def("multiplicity", [](const Ideal& X, const Ideal& Y, int trials) {
+    return multiplicity(X, Y, local_options(trials));
+  }, py::arg("X"), py::arg("Y"), py::arg("trials") = 2,
+     "Samuel multiplicity e_X(Y) of V(Y) along the irreducible subvariety V(X): the "
+     "multiplicity of Y at a general point of X, counting the components of Y of largest "
+     "dimension through X (0 if X is not in V(Y)). Homogeneous input is treated as affine "
+     "cones (same multiplicities). Monte Carlo: computed at a general F_p-point for random "
+     "31-bit primes p, repeated until `trials` independent runs agree.");
+  m.def("contained", [](const Ideal& X, const Ideal& Y, int trials) {
+    return contained(X, Y, local_options(trials));
+  }, py::arg("X"), py::arg("Y"), py::arg("trials") = 2,
+     "V(X) ⊆ V(Y), i.e. Y lies in the radical of X (Monte Carlo, modulo random primes). "
+     "For containment of ideals use X.contains(Y).");
+  m.def("in_singular_locus", [](const Ideal& X, const Ideal& Y, int trials) {
+    return in_singular_locus(X, Y, local_options(trials));
+  }, py::arg("X"), py::arg("Y"), py::arg("trials") = 2,
+     "V(X) ⊆ Sing V(Y) for X irreducible and Y prime (e_X(Y) > 1); no singular-locus "
+     "equations are computed.");
+  m.def("polar_multiplicity", [](const Ideal& X, const Ideal& Z, int dim, int trials) {
+    return polar_multiplicity(X, Z, dim, local_options(trials));
+  }, py::arg("X"), py::arg("Z"), py::arg("dim"), py::arg("trials") = 2,
+     "Entry `dim` of polar_sequence(X, Z), computed alone.");
+  m.def("polar_sequence", [](const Ideal& X, const Ideal& Z, int trials) {
+    return polar_sequence(X, Z, local_options(trials));
+  }, py::arg("X"), py::arg("Z"), py::arg("trials") = 2,
+     "Multiplicities at a general point of V(X) of the generic polar varieties of the "
+     "prime Z, by dimension 0..dim Z (the last entry is e_X(Z)); 0 where X is not in the "
+     "polar variety. Teissier: Whitney's conditions hold for (Z_reg, Y) at general points "
+     "of Y iff this sequence is constant along Y.");
   m.def("polar_varieties", [](const Ideal& I, long bound) {
     return polar_varieties(I, jacobian_ideal(I), bound);
   }, py::arg("ideal"), py::arg("bound") = 1000,

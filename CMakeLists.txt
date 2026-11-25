@@ -17,7 +17,8 @@ find_path(GMP_INCLUDE_DIR gmp.h REQUIRED)
 find_package(OpenMP)
 
 add_library(helmer_core STATIC
-  src/poly.cpp src/gb.cpp src/ideal.cpp src/primes.cpp src/whitney.cpp src/certify.cpp)
+  src/poly.cpp src/gb.cpp src/ideal.cpp src/primes.cpp src/whitney.cpp src/certify.cpp
+  src/modp.cpp src/multiplicity.cpp)
 target_include_directories(helmer_core PUBLIC include ${FLINT_INCLUDE_DIR} ${GMP_INCLUDE_DIR})
 target_link_libraries(helmer_core PUBLIC ${NEOGB_LIB} ${FLINT_LIB} ${GMP_LIB} m)
 if(OpenMP_C_FOUND)

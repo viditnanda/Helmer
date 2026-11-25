@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14, macos-15-intel]
+        os: [ubuntu-latest, macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install gmp mpfr autoconf automake libtool
+          # Homebrew's libraries are built for the runner's macOS, so everything else, wheels included, targets it too.
           export MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d. -f1).0
+          echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix)" >> "$GITHUB_ENV"
           PREFIX="$(brew --prefix)" MSOLVE_CONFIGURE_EXTRA=--disable-openmp sh tools/build_wheel_deps.sh
       - uses: pypa/cibuildwheel@v2.21
         env:
@@ -37,10 +40,6 @@ jobs:
             dnf install -y autoconf automake libtool git xz m4 &&
             BUILD_GMP=1 sh tools/build_wheel_deps.sh
           CIBW_ENVIRONMENT_LINUX: LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
-          # Homebrew's libraries are built for the runner's macOS, so the wheels target it too.
-          CIBW_ENVIRONMENT_MACOS: >-
-            MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d. -f1).0
-            CMAKE_PREFIX_PATH=$(brew --prefix)
           CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_COMMAND: python -m pytest -q {project}/tests && helmer "y^2*z - x^2"
       - uses: actions/upload-artifact@v4

@@ -619,6 +619,29 @@ Ideal preimage_of(const Graph& g, const Ideal& K, const Ideal& IX) {
 
 }  // namespace
 
+Ideal image_closure(const std::vector<Poly>& F, const Ideal& IX, const Ideal& IY) {
+  Graph g = make_graph(F, IX.ring(), IY.ring());
+  return image_of(g, IX, IY);
+}
+
+Ideal critical_values(const std::vector<Poly>& F, const Ideal& P, const Ideal& IY) {
+  // Points of the smooth part of V(P) where F restricted to it is not a submersion:
+  // rank [Jac(P) ; Jac(F)] < codim P + m, i.e. all (c + m)-minors vanish (every point,
+  // when dim P < m), saturated by the singular locus of V(P); then their image.
+  const RingPtr& R = P.ring();
+  Graph g = make_graph(F, R, IY.ring());
+  const int c = P.codim();
+  const int k = c + g.m;
+  std::vector<std::vector<Poly>> M = jacobian(P.gens());
+  auto JF = jacobian(F);
+  M.insert(M.end(), JF.begin(), JF.end());
+  std::vector<Poly> gens = P.gens();
+  for (auto& q : minors(k, M)) gens.push_back(q);
+  Ideal K(R, gens);
+  if (c > 0) K = saturate(K, jacobian_ideal(P), "exact");
+  return image_of(g, K, IY);
+}
+
 Ideal non_proper_set(const std::vector<Poly>& F, const Ideal& IX, const Ideal& IY) {
   const RingPtr& R = IX.ring();
   const RingPtr& S = IY.ring();

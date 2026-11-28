@@ -43,3 +43,20 @@ def csm_class(ideal, projective=False, trials=2):
         for c in classes:
             total = [a + b for a, b in zip(total, c)]
     return total
+
+
+from . import constructible
+from .constructible import (ConstructibleFunction, indicator, from_strata,
+                            euler_obstruction_function)
+
+_set_seed_compiled = set_seed
+
+
+def set_seed(seed):
+    """Seed Helmer's random choices (Gröbner primes, slices, and the random linear
+    sections used by constructible-function pushforward)."""
+    _set_seed_compiled(seed)
+    constructible._rng.seed(seed)
+
+
+__all__ += ["ConstructibleFunction", "indicator", "from_strata", "euler_obstruction_function"]

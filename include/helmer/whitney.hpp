@@ -73,6 +73,12 @@ struct MapOptions {
 };
 MapStratification map_stratify(const std::vector<Poly>& F, const Ideal& IX, const Ideal& IY,
                                const MapOptions& opts = {});
+// Closure of f(V(IX)), plus IY.
+Ideal image_closure(const std::vector<Poly>& F, const Ideal& IX, const Ideal& IY);
+// Closure of the critical values of f restricted to the smooth part of V(P) (P prime):
+// the image of the points where f restricted to it is not a submersion (all of V(P)
+// when dim V(P) < number of components of f).
+Ideal critical_values(const std::vector<Poly>& F, const Ideal& P, const Ideal& IY);
 // Jelonek set of points of Y over which f|X is not proper (as an ideal of k[y]).
 Ideal non_proper_set(const std::vector<Poly>& F, const Ideal& IX, const Ideal& IY);
 

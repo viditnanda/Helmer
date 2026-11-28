@@ -139,6 +139,8 @@ PYBIND11_MODULE(_helmer, m) {
       .def(py::init<RingPtr, const std::string&>())
       .def("__str__", &Poly::str)
       .def("__repr__", &Poly::str)
+      .def("compose", [](const Poly& f, const std::vector<Poly>& images) { return f.compose(images); },
+           py::arg("images"), "Substitute the i-th variable by images[i] (polynomials in one ring).")
       .def("__add__", &Poly::operator+)
       .def("__sub__", [](const Poly& a, const Poly& b) { return a - b; })
       .def("__mul__", &Poly::operator*)
@@ -331,6 +333,24 @@ PYBIND11_MODULE(_helmer, m) {
      py::arg("strata") = "all", py::arg("log") = py::none(),
      "Stratify f: X -> Y (F = components of f, as polynomials in X's ring). Returns "
      "(strata of X, strata of Y).");
+  m.def("image_closure", [](py::object F, const Ideal& X, const Ideal& Y) {
+    std::vector<Poly> Fp;
+    for (auto f : F) {
+      if (py::isinstance<Poly>(f)) Fp.push_back(f.cast<Poly>());
+      else Fp.emplace_back(X.ring(), py::str(f).cast<std::string>());
+    }
+    return image_closure(Fp, X, Y);
+  }, py::arg("F"), py::arg("X"), py::arg("Y"), "Zariski closure of f(V(X)) in V(Y).");
+  m.def("critical_values", [](py::object F, const Ideal& P, const Ideal& Y) {
+    std::vector<Poly> Fp;
+    for (auto f : F) {
+      if (py::isinstance<Poly>(f)) Fp.push_back(f.cast<Poly>());
+      else Fp.emplace_back(P.ring(), py::str(f).cast<std::string>());
+    }
+    return critical_values(Fp, P, Y);
+  }, py::arg("F"), py::arg("P"), py::arg("Y"),
+     "Closure of the critical values of f = F on the smooth part of V(P) (P prime), as an "
+     "ideal of Y's ring (plus Y).");
   m.def("non_proper_set", [](py::object F, const Ideal& X, const Ideal& Y) {
     std::vector<Poly> Fp;
     for (auto f : F) Fp.emplace_back(X.ring(), py::str(f).cast<std::string>());

@@ -261,3 +261,20 @@ long random_coeff(long bound) {
 }
 
 }  // namespace helmer
+
+namespace helmer {
+Poly Poly::compose(const std::vector<Poly>& images) const {
+  if (static_cast<int>(images.size()) != R_->nvars())
+    throw std::invalid_argument("compose: need one image per variable");
+  if (images.empty()) throw std::invalid_argument("compose: no variables");
+  const RingPtr& T = images[0].ring();
+  for (auto& g : images)
+    if (g.ring() != T) throw std::invalid_argument("compose: images in different rings");
+  Poly r(T);
+  std::vector<fmpq_mpoly_struct*> v;
+  for (auto& g : images) v.push_back(const_cast<fmpq_mpoly_struct*>(g.raw()));
+  if (!fmpq_mpoly_compose_fmpq_mpoly(r.raw(), p_, v.data(), R_->ctx(), T->ctx()))
+    throw std::runtime_error("compose: exponent overflow");
+  return r;
+}
+}  // namespace helmer

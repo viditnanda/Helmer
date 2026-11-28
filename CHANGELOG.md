@@ -11,6 +11,13 @@
   through one general F_p-point (Monte Carlo, two agreeing runs): `multiplicity` (Samuel
   multiplicity, any X ⊆ Y; no Segre classes needed), `polar_sequence`, `polar_multiplicity`,
   `in_singular_locus`, and `contained` (V(X) ⊆ V(Y)).
+* Constructible functions and Euler calculus (`ConstructibleFunction`, `indicator`,
+  `from_strata`, `euler_obstruction_function`): canonical ℤ-combinations of indicators of
+  irreducible closed subvarieties; arithmetic, Euler integrals, pullback, Euler-obstruction
+  decomposition and characteristic cycles, and pushforward along polynomial maps, including
+  maps to a line that are non-proper over every value (atypical values at infinity, as for
+  Broughton's polynomial, via charts of the closure of the graph). New: `critical_values`,
+  `image_closure`, `Poly.compose`.
 * Euler obstructions, characteristic cycles and Chern classes of strata: `chern_classes`
   (per stratum: χ, CSM class, Chern–Mather class, CC multiplicity), `euler_characteristic`,
   `csm_class`, `euler_obstruction_matrix` and `cc_multiplicities` (M2 `eulerObsMatrix`,

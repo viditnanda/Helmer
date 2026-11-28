@@ -97,6 +97,8 @@ The functions are documented in [docs/API.md](docs/API.md).
 | `multCC(V)` | `cc_multiplicities(S)` | Same sign convention. |
 | `CSM(I)`, `Euler(I)` (`CharacteristicClasses`) | `csm_class(I)`, `euler_characteristic(I)` | Also affine, and per stratum: `chern_classes(S)`. |
 | | `chern_classes(S)` | χ, CSM class, Chern–Mather class and CC multiplicity of every stratum. |
+| | `ConstructibleFunction`, `indicator`, `.push`, `.pull`, `.integral` | Constructible functions and Euler calculus; see below. |
+| | `critical_values(F, P, Y)`, `image_closure(F, X, Y)` | |
 | | `global_polar_degrees(Z)`, `global_euler_obstruction(Z)` | Affine polar invariants (Seade–Tibăr–Verjovsky). |
 | | `contained(X, Y)` | V(X) ⊆ V(Y); for ideals, `X.contains(Y)`. |
 | `conormal(I)` | `conormal(I)` | In kⁿ × ℙⁿ⁻¹, variables `v_0..v_{n-1}`. |
@@ -278,6 +280,56 @@ where μ jumps have multiplicity 1, and χ = 1 for the whole hypersurface. Timin
 Briançon–Speder 20 s (after 46 s of stratification and coarsening), the small version 0.7 s,
 every fixture together 1 s.
 
+## Constructible functions and Euler calculus
+
+A `ConstructibleFunction` on affine space is a ℤ-linear combination Σ c_V 1_V of indicator
+functions of irreducible closed subvarieties (prime ideals). These are a free basis, so the
+representation is canonical and functions coming from different stratifications add without
+a common refinement.
+
+```python
+from helmer import Ring, Ideal, indicator
+C, W = Ring("a,b,c,d"), Ring("x,y")
+arm = indicator(Ideal(C, ["a^2+b^2-1", "c^2+d^2-1"]))   # planar arm, unit links
+arm.push(["a+c", "b+d"], W)       # configurations over each end-effector position
+# +2·1[ideal()] -1·1[ideal(x^2 + y^2 - 4)] -2·1[ideal(x^2 + y^2)]
+```
+
+`indicator(I)` (by inclusion–exclusion over the minimal primes), `from_strata(S, values)` and
+`euler_obstruction_function(V)` build functions; `+`, `−`, scalar and pointwise `*` combine
+them; `.value(X)` evaluates at a general point of V(X), `.on(S)` on the strata of a
+stratification, `.integral()` is the Euler integral Σ c_V χ(V), `.pull(F, X)` is f*, and
+`.eu_decomposition()` and `.characteristic_cycle()` express φ in the basis of Euler obstructions
+Eu_W and as Σ m_W [T*_W] (the conormal of W with multiplicity (−1)^dim W times its
+Eu-coefficient).
+
+`.push(F, T)` is f_*: (f_*φ)(y) = ∫ φ over f⁻¹(y). The value over a target stratum T is the Euler
+characteristic of the preimage of deg T general points of T (a variety over ℚ), divided by
+deg T, so what matters is a target stratification over which fibres are topologically
+constant:
+
+* **Maps to a line.** The candidates are the critical values of f on the strata of V and the
+  Jelonek set, which for a map to a line is finite (f is then proper over its complement)
+  or the whole line. In the latter case, as for Broughton's polynomial x(xy − 1), which has
+  no critical points but an atypical fibre over 0, Helmer also takes the critical values of
+  the projection on the strata of (closure of the graph in ℙⁿ × ℂ) ∪ (hyperplane at
+  infinity × ℂ), chart by chart. That is a superset of the bifurcation values: the minimal
+  Whitney stratification of the union is global and contains the boundary as a union of
+  strata, and refining only adds critical values. The charts at infinity can be expensive:
+  a family of hypersurfaces whose closure is badly singular at infinity (Briançon–Speder,
+  projected to its parameter) is out of reach for now.
+* **Other targets.** `map_stratify(..., proper=False)`, whose Jelonek flag makes each
+  restriction proper over the target strata (Thom). If some map in the flag is non-proper
+  over a dense part of a positive-dimensional image, the flag says nothing there, and `push`
+  raises `NotImplementedError` rather than return a function that may be wrong.
+
+Euler characteristics come from `chern_classes`, so this is Monte Carlo in the same sense;
+values over general points are computed twice, with independent random choices, and must
+agree. The tests check closed forms: finite maps, Broughton's polynomial, the family
+y² = x³ + t (χ −1 generically, 1 over the cusp), the number of roots of ax² + bx + c, and the
+arm above (2 configurations, 1 on the reach circle, a circle over the origin and none over the
+rest of the isotropic cone); pushforward preserves Euler integrals.
+
 ## Certified membership and elimination
 
 `certify_membership(I, h, block)` returns cofactors with h = Σ c_j g_j over the
@@ -378,7 +430,7 @@ checks multiplicities and polar sequences against closed forms (cones over plane
 degree d: polar sequence (0, d(d−1), d), Euler obstruction 2d − d²), `min_coarsen` against
 M2's `minCoarsenWS` where recorded, the polar route against the conormal route (the polar
 route adds random extra strata; after coarsening the two agree on every affine example),
-and projective varieties against their affine cones. `tests/test_filtration.py` checks that `whitney_filtration` contains the minimal stratification on every example, and `tests/test_characteristic.py` the Euler obstructions, Euler characteristics and Chern classes (189 tests, about 40 s).
+and projective varieties against their affine cones. `tests/test_filtration.py` checks that `whitney_filtration` contains the minimal stratification on every example, and `tests/test_characteristic.py` the Euler obstructions, Euler characteristics and Chern classes, and `tests/test_constructible.py` the Euler calculus (199 tests, about 40 s).
 Independently of the fixtures, on every example of `bench/examples.py` the chart
 saturation agrees with the exact saturation by all minors, and adding a free variable
 (with a random rational shear) shifts every stratum up by one dimension.

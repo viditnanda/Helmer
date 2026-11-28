@@ -117,6 +117,30 @@ global_euler_obstruction(Z) -> int
 
 Monte Carlo in the same sense as the previous section. C++: `helmer/characteristic.hpp`.
 
+## Constructible functions
+
+```python
+indicator(ideal) -> ConstructibleFunction                  # 1_{V(ideal)}
+from_strata(strata, values) -> ConstructibleFunction        # values[d][i] on strata[d][i]
+euler_obstruction_function(prime) -> ConstructibleFunction  # Eu_V
+ConstructibleFunction(ring, {prime_ideal: int, ...})
+phi + psi, phi - psi, k * phi, phi * psi                    # pointwise
+phi.value(X)              # at a general point of V(X), X prime
+phi.on(strata)            # {dim: [values]}
+phi.integral()            # Euler integral (also .euler_characteristic())
+phi.push(F, target_ring, target=None)   # f_*, F one polynomial per target variable
+phi.pull(F, source)       # f^* along F: V(source) -> phi's ring
+phi.eu_decomposition()    # {W: e_W}, phi = sum e_W Eu_W
+phi.characteristic_cycle()   # {W: (-1)^dim W e_W}
+critical_values(F, P, Y) -> Ideal    # closure of the critical values of F on V(P)_reg
+image_closure(F, X, Y) -> Ideal
+Poly.compose(images) -> Poly
+```
+
+Affine varieties only. `push` to a line handles any map (charts at infinity when the map is non-proper over
+every value, which can be expensive); to higher-dimensional targets it uses `map_stratify(..., proper=False)` and
+raises `NotImplementedError` where the Jelonek flag cannot control the fibres. See the README.
+
 ## Maps
 
 ```python

@@ -78,6 +78,8 @@ class Poly {
   Poly operator*(const Poly& o) const;
   Poly operator-() const;
   Poly scale_si(long c) const;
+  // Substitute variable i -> images[i] (all in one ring, the result's ring).
+  Poly compose(const std::vector<Poly>& images) const;
   Poly derivative(int var) const;
   bool equal(const Poly& o) const;
 
